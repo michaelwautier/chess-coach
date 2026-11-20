@@ -1,4 +1,17 @@
-/* Chessground coordinates drawn inside the squares, colored to contrast with the brown board. */
+/* Board colors come from the --board-light / --board-dark variables (see src/appearance/themes.ts). */
+:root {
+  --board-light: #f0d9b5;
+  --board-dark: #b58863;
+}
+
+/* 8×8 checkerboard: each 25% tile holds 2×2 squares, light in the top-left corner (a8 / h1). */
+.cg-wrap cg-board {
+  background-color: var(--board-light);
+  background-image: repeating-conic-gradient(var(--board-dark) 0 25%, var(--board-light) 0 50%);
+  background-size: 25% 25%;
+}
+
+/* Coordinates drawn inside the squares, in the opposite square color. */
 .cg-wrap coords {
   font-size: 10px;
   font-weight: 700;
@@ -33,11 +46,11 @@
 .cg-wrap.orientation-white coords.files coord:nth-child(even),
 .cg-wrap.orientation-black coords.ranks coord:nth-child(even),
 .cg-wrap.orientation-black coords.files coord:nth-child(odd) {
-  color: #b58863;
+  color: var(--board-dark);
 }
 .cg-wrap.orientation-white coords.ranks coord:nth-child(even),
 .cg-wrap.orientation-white coords.files coord:nth-child(odd),
 .cg-wrap.orientation-black coords.ranks coord:nth-child(odd),
 .cg-wrap.orientation-black coords.files coord:nth-child(even) {
-  color: #f0d9b5;
+  color: var(--board-light);
 }

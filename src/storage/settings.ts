@@ -1,3 +1,4 @@
+import { BOARD_THEMES, DEFAULT_BOARD_THEME, DEFAULT_PIECE_SET, PIECE_SETS } from '@/appearance/themes';
 import { MAX_LEVEL, MIN_LEVEL } from '@/engine/levels';
 import { TIME_CONTROLS, type Settings } from '@/game/types';
 
@@ -11,7 +12,13 @@ export const DEFAULT_SETTINGS: Settings = {
   ratingChesscom: null,
   ratingLichess: null,
   provider: 'auto',
+  boardTheme: DEFAULT_BOARD_THEME.id,
+  boardLight: DEFAULT_BOARD_THEME.light,
+  boardDark: DEFAULT_BOARD_THEME.dark,
+  pieceSet: DEFAULT_PIECE_SET,
 };
+
+const isHexColor = (v: unknown): v is string => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
 
 const oneOf = <T extends string>(value: unknown, allowed: readonly T[], fallback: T): T =>
   allowed.includes(value as T) ? (value as T) : fallback;
@@ -42,6 +49,32 @@ export function sanitizeSettings(raw: unknown): Settings {
       ['auto', 'claude-app', 'anthropic', 'openai', 'gemini', 'none'],
       DEFAULT_SETTINGS.provider,
     ),
+    ...sanitizeBoard(r),
+    pieceSet: oneOf(
+      r.pieceSet,
+      PIECE_SETS.map((p) => p.id),
+      DEFAULT_SETTINGS.pieceSet,
+    ),
+  };
+}
+
+/** A preset theme always uses its own colors; custom colors must be valid hex colors. */
+function sanitizeBoard(
+  r: Record<string, unknown>,
+): Pick<Settings, 'boardTheme' | 'boardLight' | 'boardDark'> {
+  const preset = BOARD_THEMES.find((t) => t.id === r.boardTheme);
+  if (preset) return { boardTheme: preset.id, boardLight: preset.light, boardDark: preset.dark };
+  if (r.boardTheme === 'custom' && isHexColor(r.boardLight) && isHexColor(r.boardDark)) {
+    return {
+      boardTheme: 'custom',
+      boardLight: r.boardLight.toLowerCase(),
+      boardDark: r.boardDark.toLowerCase(),
+    };
+  }
+  return {
+    boardTheme: DEFAULT_BOARD_THEME.id,
+    boardLight: DEFAULT_BOARD_THEME.light,
+    boardDark: DEFAULT_BOARD_THEME.dark,
   };
 }
 

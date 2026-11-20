@@ -4,6 +4,7 @@ import { TIME_CONTROLS, type CoachThreshold, type Settings } from '@/game/types'
 import { parseRating } from '@/storage/settings';
 import { useGameStore } from '@/stores/game';
 import { useSettingsStore } from '@/stores/settings';
+import AppearanceSettings from './AppearanceSettings.vue';
 import ProviderSettings from './ProviderSettings.vue';
 
 const store = useSettingsStore();
@@ -141,6 +142,8 @@ function setRating(field: 'ratingChesscom' | 'ratingLichess', value: string): vo
         {{ game.enginesReady ? 'Lancer la partie' : game.engineStatus }}
       </button>
     </div>
+
+    <div class="card"><AppearanceSettings /></div>
 
     <div class="card"><ProviderSettings /></div>
 

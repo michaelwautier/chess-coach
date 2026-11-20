@@ -15,6 +15,7 @@ The UI is in French.
 - Move-by-move analysis with Lichess-style judgements (inaccuracy / mistake / blunder) and game accuracy.
 - Coaching pauses: retry the move, see the solution, or continue.
 - On-demand advice during your turn, history browsing, end-of-game review with an AI summary, PGN export.
+- Board color presets or custom colors, and 12 freely licensed piece sets (see `public/pieces/CREDITS.md`).
 - AI coach providers: Claude (Anthropic), OpenAI or any OpenAI-compatible API, Google Gemini, or the viewer's
   own Claude account when the app is published as a claude.ai artifact.
 
@@ -80,4 +81,5 @@ The engine is single-threaded, so no cross-origin isolation headers are needed.
 ## License
 
 GPL-3.0-or-later. Stockfish and chessground are GPL-3.0, so a hosted version must make its source code available
-under the same license. Piece images: cburnett (CC BY-SA 3.0).
+under the same license. Piece sets come from Lichess; their authors and licenses (GPL, MIT, Apache 2.0, CC BY,
+CC BY-SA, CC0) are listed in `public/pieces/CREDITS.md`.

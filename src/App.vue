@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, watchEffect } from 'vue';
+import { PIECE_SETS, applyAppearance } from './appearance/themes';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import GameView from './components/GameView.vue';
 import SetupView from './components/SetupView.vue';
@@ -8,6 +9,8 @@ import { useSettingsStore } from './stores/settings';
 
 const game = useGameStore();
 const settings = useSettingsStore();
+
+watchEffect(() => applyAppearance(settings.settings));
 
 onMounted(() => {
   void settings.init();
@@ -20,6 +23,11 @@ const engineChip = computed(() =>
 const coachChip = computed(() =>
   settings.activeProviderId && !settings.coachDisabled ? 'ok' : settings.ready ? 'warn' : '',
 );
+
+const pieceCredit = computed(() => {
+  const set = PIECE_SETS.find((p) => p.id === settings.settings.pieceSet);
+  return set ? `${set.label}, par ${set.author} (${set.license})` : '';
+});
 
 async function openSettings(): Promise<void> {
   await game.leaveGame();
@@ -41,9 +49,9 @@ async function openSettings(): Promise<void> {
   <ConfirmDialog />
   <footer>
     Moteur : <a href="https://github.com/nmrugg/stockfish.js">Stockfish.js</a> (GPLv3). Échiquier :
-    <a href="https://github.com/lichess-org/chessground">chessground</a> (GPLv3), pièces cburnett (CC BY-SA
-    3.0). Règles : <a href="https://github.com/jhlywa/chess.js">chess.js</a>. Les explications sont générées
-    par une IA à partir de l'analyse du moteur et peuvent contenir des erreurs.
+    <a href="https://github.com/lichess-org/chessground">chessground</a> (GPLv3). Pièces : {{ pieceCredit }}.
+    Règles : <a href="https://github.com/jhlywa/chess.js">chess.js</a>. Les explications sont générées par une
+    IA à partir de l'analyse du moteur et peuvent contenir des erreurs.
   </footer>
 </template>
 

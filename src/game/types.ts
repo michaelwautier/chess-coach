@@ -25,6 +25,11 @@ export interface Settings {
   ratingChesscom: number | null;
   ratingLichess: number | null;
   provider: ProviderChoice;
+  /** Preset id from BOARD_THEMES, or 'custom' when the colors were picked by hand. */
+  boardTheme: string;
+  boardLight: string;
+  boardDark: string;
+  pieceSet: string;
 }
 
 export type CoachStatus = 'idle' | 'loading' | 'streaming' | 'done' | 'error' | 'unavailable';
