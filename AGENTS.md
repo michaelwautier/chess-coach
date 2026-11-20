@@ -145,8 +145,13 @@ History browsing: `viewPly` selects a past position. The board always renders th
 - API keys: `src/storage/apiKeys.ts`, in localStorage only when "remember" is checked, otherwise in
   sessionStorage. Never stored with the settings or game history, never sent anywhere except the chosen
   provider.
-- A saved game (`GameRecord`) currently holds the PGN and the statistics only, not the per-move evaluations or
-  the coach's explanations.
+- A saved game is a `GameRecord` (PGN and statistics, in the game list) plus its `GameDetails`
+  (`src/game/details.ts`): the issues with the coach's answers, the engine's errors, the full statistics and
+  the end-of-game summary. Details are stored apart, one localStorage entry per game
+  (`chess-coach.details.<date>`, or `details/<date>` in the artifact database), keyed by the record's `date`.
+  They are saved when the game ends and again once the coach's pending answers and the summary complete. When
+  localStorage is full, the oldest details are dropped first; the records stay. `sanitizeDetails` validates
+  them on load. Games saved before details existed replay with their moves and statistics only.
 
 ### Appearance
 
@@ -194,21 +199,17 @@ History browsing: `viewPly` selects a past position. The board always renders th
 
 ### 2. Game history and review
 
-Goal: reopen a past game and replay it move by move, with the judgements and the coach's explanations.
+Done: "Revoir" on each row of the history card opens the game on the game screen in a read-only replay
+(`openReplay` in the game store, `phase` `over` with `replay` set): move list with markers, history browsing,
+the end-of-game panel with its summary, and each error with the coach's explanation. See Storage above.
 
-- **Data.** Extend `GameRecord` (or store a separate record keyed by game id) with, per ply: SAN/UCI, FEN after
-  the move, score before/after, class, and for issues the best move, the refutation and the coach's answer
-  (`raw` text). Keep the old records readable: make the new fields optional and validate on load.
-- **Size.** localStorage is limited to about 5 MB per origin. A 40-move game with coach texts is a few tens of
-  KB (estimate to confirm), so 50 full games should fit, but check the size on write and drop the oldest details first (keep the PGN and
-  stats). IndexedDB is the next step if more is needed.
-- **UI.** A "Revoir" button on each row of the history card in `SetupView`. Reuse the board and the `viewPly`
-  browsing from the game screen in a read-only review mode: move list with colored markers for
-  inaccuracy/mistake/blunder, the coach's explanation under the board when the selected move is an issue, the
-  accuracy graph if cheap to add.
-- **Re-analysis.** Old games (PGN only) can be re-analysed on demand with the analyst engine; ask the coach
-  again only when the user clicks, since it costs API calls.
-- **Tests.** Record serialization and migration of old records; computing markers from stored evaluations.
+Left:
+
+- **Re-analysis.** Games without details (or with the coach disabled) could be re-analysed on demand with the
+  analyst engine; ask the coach again only when the user clicks, since it costs API calls.
+- **Accuracy graph** along the move list, from per-move evaluations (not stored yet: `moveEvals` would need to
+  go into the details).
+- Only the 8 most recent games are listed; older ones are stored but not reachable from the UI.
 
 ### 3. Exercises from the user's own mistakes
 

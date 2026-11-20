@@ -16,6 +16,7 @@ The UI is in French.
 - Coaching pauses: retry the move, see the solution, or continue (and go back to the pause if you continued
   by mistake).
 - On-demand advice during your turn, history browsing, end-of-game review with an AI summary, PGN export.
+- Replay of past games from the history list, with the judgements and the coach's explanations.
 - Board color presets or custom colors, and 12 freely licensed piece sets (see `public/pieces/CREDITS.md`).
 - AI coach providers: Claude (Anthropic), OpenAI or any OpenAI-compatible API, Google Gemini, or the viewer's
   own Claude account when the app is published as a claude.ai artifact.

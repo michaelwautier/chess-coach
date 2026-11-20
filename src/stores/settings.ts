@@ -8,6 +8,7 @@ import {
   type ProviderId,
 } from '@/coach/providers';
 import type { CoachError } from '@/coach/providers/types';
+import type { GameDetails } from '@/game/details';
 import type { GameRecord, Settings } from '@/game/types';
 import { useCapability, type SampleFunction } from '@/platform/claudeRuntime';
 import { loadProviderConfigs, loadRememberKeys, saveProviderConfigs } from '@/storage/apiKeys';
@@ -52,6 +53,14 @@ export const useSettingsStore = defineStore('settings', () => {
   async function addGame(game: GameRecord): Promise<void> {
     await profile?.addGame(game);
     await refreshHistory();
+  }
+
+  function saveDetails(details: GameDetails): Promise<void> {
+    return profile?.saveDetails(details) ?? Promise.resolve();
+  }
+
+  function loadDetails(key: string): Promise<GameDetails | null> {
+    return profile?.loadDetails(key) ?? Promise.resolve(null);
   }
 
   const activeProviderId = computed<ProviderId | null>(() => {
@@ -101,6 +110,8 @@ export const useSettingsStore = defineStore('settings', () => {
     saveSettings,
     saveProviders,
     addGame,
+    saveDetails,
+    loadDetails,
     coachProvider,
     disableCoach,
   };
