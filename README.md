@@ -83,6 +83,9 @@ The engine is single-threaded, so no cross-origin isolation headers are needed.
 
 To serve the app from a sub-path, set `BASE_PATH` at build time (`BASE_PATH=/chess-coach/ npm run build`).
 
+Production builds include a Content Security Policy `<meta>` tag (see `vite.config.ts`) that only lets the app's
+own scripts run, so an injected script cannot read the API keys stored in the browser.
+
 The public version runs on GitHub Pages at <https://michaelwautier.github.io/chess-coach/>. The
 `.github/workflows/pages.yml` workflow builds and deploys it on every push to `main`.
 

@@ -56,6 +56,10 @@ async function openSettings(): Promise<void> {
     <a href="https://github.com/lichess-org/chessground">chessground</a> (GPLv3). Pièces : {{ pieceCredit }}.
     Règles : <a href="https://github.com/jhlywa/chess.js">chess.js</a>. Les explications sont générées par une
     IA à partir de l'analyse du moteur et peuvent contenir des erreurs.
+    <br />
+    Tes clés API, tes réglages et tes parties restent dans ce navigateur : les clés ne partent que vers le
+    fournisseur d'IA choisi. Code source (GPLv3) :
+    <a href="https://github.com/michaelwautier/chess-coach">github.com/michaelwautier/chess-coach</a>.
   </footer>
 </template>
 
