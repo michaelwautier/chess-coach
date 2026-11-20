@@ -9,6 +9,7 @@ import {
 } from '@/coach/providers';
 import type { CoachError } from '@/coach/providers/types';
 import type { GameDetails } from '@/game/details';
+import type { Drill } from '@/game/drills';
 import type { GameRecord, Settings } from '@/game/types';
 import { useCapability, type SampleFunction } from '@/platform/claudeRuntime';
 import { loadProviderConfigs, loadRememberKeys, saveProviderConfigs } from '@/storage/apiKeys';
@@ -63,6 +64,14 @@ export const useSettingsStore = defineStore('settings', () => {
     return profile?.loadDetails(key) ?? Promise.resolve(null);
   }
 
+  function loadDrills(): Promise<Drill[]> {
+    return profile?.loadDrills() ?? Promise.resolve([]);
+  }
+
+  function saveDrills(drills: Drill[]): Promise<void> {
+    return profile?.saveDrills(drills) ?? Promise.resolve();
+  }
+
   const activeProviderId = computed<ProviderId | null>(() => {
     const choice = settings.provider;
     if (choice === 'none') return null;
@@ -112,6 +121,8 @@ export const useSettingsStore = defineStore('settings', () => {
     addGame,
     saveDetails,
     loadDetails,
+    loadDrills,
+    saveDrills,
     coachProvider,
     disableCoach,
   };

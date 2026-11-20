@@ -2,18 +2,21 @@
 import { computed, onMounted, watchEffect } from 'vue';
 import { PIECE_SETS, applyAppearance } from './appearance/themes';
 import ConfirmDialog from './components/ConfirmDialog.vue';
+import DrillView from './components/DrillView.vue';
 import GameView from './components/GameView.vue';
 import SetupView from './components/SetupView.vue';
+import { useDrillsStore } from './stores/drills';
 import { useGameStore } from './stores/game';
 import { useSettingsStore } from './stores/settings';
 
 const game = useGameStore();
 const settings = useSettingsStore();
+const drills = useDrillsStore();
 
 watchEffect(() => applyAppearance(settings.settings));
 
 onMounted(() => {
-  void settings.init();
+  void settings.init().then(() => drills.load());
   void game.initEngines();
 });
 
@@ -43,7 +46,8 @@ async function openSettings(): Promise<void> {
     <button v-if="game.phase !== 'setup'" class="btn" @click="openSettings">⚙︎ Réglages</button>
   </header>
   <main>
-    <SetupView v-if="game.phase === 'setup'" />
+    <DrillView v-if="drills.session" />
+    <SetupView v-else-if="game.phase === 'setup'" />
     <GameView v-else @settings="openSettings" />
   </main>
   <ConfirmDialog />
