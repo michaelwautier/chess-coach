@@ -46,4 +46,29 @@ describe('pins and hanging pieces', () => {
     const chess = new Chess('4k3/8/8/8/6q1/8/8/4K1Q1 b - - 0 1');
     expect(hangingPieces(chess, 'b')).toEqual(['Dame g4 (non défendue)']);
   });
+
+  it('names the cheaper attacker instead of calling a pawn a piece', () => {
+    const chess = new Chess('4k3/8/8/3p4/2N5/1P6/8/4K3 w - - 0 1');
+    expect(hangingPieces(chess, 'w')).toEqual(['Cavalier c4 (attaqué par Pion d5, de moindre valeur)']);
+  });
+});
+
+describe('attack table owners', () => {
+  // Black to play after 1. e4 e5 2. Qh5: the student has Black, the white queen is the engine's.
+  const qh5 = 'rnbqkbnr/pppp1ppp/8/4p2Q/4P3/8/PPPP1PPP/RNB1KBNR b KQkq - 1 2';
+
+  it('says which side belongs to the student and which to the engine', () => {
+    const table = attackTable(qh5, 'b');
+    expect(table).toContain('Pion e5 (élève, Noirs) : attaqué 1 fois par le moteur (Dame h5)');
+    expect(table).toContain(
+      "Pion f7 (élève, Noirs) : attaqué 1 fois par le moteur (Dame h5) ; défendu 1 fois par l'élève (Roi e8",
+    );
+    expect(attackTable(qh5)).toContain('Pion e5 (Noirs) : attaqué 1 fois par les Blancs (Dame h5)');
+  });
+
+  it('does not call pawns pieces when nothing is attacked', () => {
+    expect(attackTable('4k3/8/8/8/8/8/8/4K3 w - - 0 1', 'w')).toContain(
+      'Aucune pièce ni aucun pion attaqué.',
+    );
+  });
 });

@@ -1,4 +1,5 @@
-import { Chess } from 'chess.js';
+import { Chess, type Square } from 'chess.js';
+import type { PieceType } from './types';
 
 const FR_PIECE: Record<string, string> = { K: 'R', Q: 'D', R: 'T', B: 'F', N: 'C' };
 
@@ -53,6 +54,15 @@ export function movesText(sanHistory: string[], lastPlies = 12): string {
 /** "12." for White's move at ply 22, "12…" for Black's move at ply 23. */
 export const moveNumberLabel = (ply: number): string =>
   `${Math.floor(ply / 2) + 1}${ply % 2 === 0 ? '.' : '…'}`;
+
+/** Type of the piece or pawn standing on `square`, or null. */
+export function pieceTypeAt(fen: string, square: string): PieceType | null {
+  try {
+    return new Chess(fen).get(square as Square)?.type ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export const uciOf = (m: { from: string; to: string; promotion?: string }): string =>
   m.from + m.to + (m.promotion ?? '');

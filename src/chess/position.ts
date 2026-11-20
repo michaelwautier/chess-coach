@@ -139,9 +139,10 @@ export function positionReport(fen: string, userColor: Color): string {
   const halfOpenB = [...FILES].filter((f) => has.w.has(f) && !has.b.has(f));
   const moveNo = Number(fen.split(' ')[5]);
 
+  const engineColor = other(userColor);
   const out = [
-    `Pièces des Blancs : ${describePieces(pieces.w)}`,
-    `Pièces des Noirs : ${describePieces(pieces.b)}`,
+    `Pièces et pions de l'élève (${colorName(userColor)}) : ${describePieces(pieces[userColor])}`,
+    `Pièces et pions du moteur (${colorName(engineColor)}) : ${describePieces(pieces[engineColor])}`,
     sideSummary(chess, pieces, userColor, `Élève (${colorName(userColor)})`),
     sideSummary(chess, pieces, other(userColor), `Moteur (${colorName(other(userColor))})`),
     `Colonnes ouvertes : ${open.join(', ') || 'aucune'} ; semi-ouvertes pour les Blancs : ${halfOpenW.join(', ') || 'aucune'} ; pour les Noirs : ${halfOpenB.join(', ') || 'aucune'}.`,
@@ -157,7 +158,7 @@ export function positionReport(fen: string, userColor: Color): string {
   out.push(
     'Tableau des attaques (calculé par programme : batteries comprises, pièces clouées sur leur roi exclues) :',
   );
-  out.push(attackTable(fen));
+  out.push(attackTable(fen, userColor));
   const officers = [...pieces.w, ...pieces.b].filter((p) => p.type !== 'p' && p.type !== 'k').length;
   out.push(
     `Phase : ${moveNo <= 10 ? 'ouverture' : officers <= 6 ? 'finale' : 'milieu de partie'} (coup ${moveNo}).`,
