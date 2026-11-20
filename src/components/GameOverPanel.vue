@@ -15,7 +15,7 @@ const props = defineProps<{
   /** Set when showing a past game rather than the one just played. */
   replay?: { record: GameRecord; hasDetails: boolean } | null;
 }>();
-const emit = defineEmits<{ review: [issue: Issue]; again: []; settings: []; resummarize: [] }>();
+const emit = defineEmits<{ review: [issue: Issue]; again: []; home: []; resummarize: [] }>();
 
 const TITLES = { win: 'Victoire', loss: 'Défaite', draw: 'Nulle' } as const;
 const stats = computed(() => props.result.stats);
@@ -121,7 +121,7 @@ async function copyPgn(): Promise<void> {
 
     <div class="btn-row">
       <button class="btn primary" @click="emit('again')">Nouvelle partie</button>
-      <button class="btn" @click="emit('settings')">{{ replay ? 'Retour' : 'Réglages' }}</button>
+      <button class="btn" @click="emit('home')">{{ replay ? 'Retour' : 'Accueil' }}</button>
       <button class="btn" @click="copyPgn">Copier le PGN</button>
     </div>
     <p v-if="pgnNote" class="small muted">{{ pgnNote }}</p>

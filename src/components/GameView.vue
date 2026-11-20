@@ -16,7 +16,7 @@ import PromotionPicker from './PromotionPicker.vue';
 
 const game = useGameStore();
 const settings = useSettingsStore();
-const emit = defineEmits<{ settings: [] }>();
+const emit = defineEmits<{ home: [] }>();
 
 const material = computed(() => materialBalance(game.board.fen));
 const advantage = (color: 'w' | 'b') => (color === 'w' ? material.value.diff : -material.value.diff);
@@ -157,7 +157,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
         :replay="game.replay"
         @review="game.reviewError"
         @again="game.newGame()"
-        @settings="emit('settings')"
+        @home="emit('home')"
         @resummarize="game.retrySummary()"
       />
 

@@ -6,12 +6,14 @@ import { parseRating } from '@/storage/settings';
 import { useDrillsStore } from '@/stores/drills';
 import { useGameStore } from '@/stores/game';
 import { useSettingsStore } from '@/stores/settings';
-import AppearanceSettings from './AppearanceSettings.vue';
-import ProviderSettings from './ProviderSettings.vue';
 
 const store = useSettingsStore();
 const game = useGameStore();
 const drills = useDrillsStore();
+const emit = defineEmits<{ settings: [] }>();
+
+/** The AI coach settings live on their own page: point there when the coach cannot answer. */
+const coachMissing = computed(() => store.ready && (!store.activeProviderId || !!store.coachDisabled));
 
 const nextDrillText = computed(() => {
   const next = drills.next;
@@ -116,6 +118,10 @@ async function review(record: GameRecord): Promise<void> {
           {{ c.label }}
         </button>
       </div>
+      <p v-if="coachMissing" class="muted small coach-note">
+        {{ store.coachLabel }}.
+        <button type="button" class="link" @click="emit('settings')">Configurer le coach IA</button>
+      </p>
 
       <label>Explications du coach</label>
       <div class="seg">
@@ -161,6 +167,21 @@ async function review(record: GameRecord): Promise<void> {
       <button class="btn primary start" :disabled="!game.enginesReady" @click="game.newGame()">
         {{ game.enginesReady ? 'Lancer la partie' : game.engineStatus }}
       </button>
+
+      <div v-if="store.history.length" class="history">
+        <h3>Dernières parties</h3>
+        <div v-for="g in store.history" :key="g.date" class="history-row">
+          <span>{{ new Date(g.date).toLocaleDateString('fr-FR') }}</span>
+          <span :class="`result-${g.result}`">{{ RESULTS[g.result] }}</span>
+          <span>niv. {{ g.level }}</span>
+          <span
+            >{{ g.accuracy ?? '—' }}{{ g.accuracy !== null && g.accuracy !== undefined ? ' %' : '' }}</span
+          >
+          <button class="btn review" :disabled="!!opening" @click="review(g)">
+            {{ opening === g.date ? '…' : 'Revoir' }}
+          </button>
+        </div>
+      </div>
     </div>
 
     <div class="card drills">
@@ -189,24 +210,6 @@ async function review(record: GameRecord): Promise<void> {
           S'entraîner
         </button>
       </template>
-    </div>
-
-    <div class="card"><AppearanceSettings /></div>
-
-    <div class="card"><ProviderSettings /></div>
-
-    <div class="card history">
-      <h3>Dernières parties</h3>
-      <p v-if="!store.history.length" class="muted small">Aucune partie pour l'instant.</p>
-      <div v-for="g in store.history" :key="g.date" class="history-row">
-        <span>{{ new Date(g.date).toLocaleDateString('fr-FR') }}</span>
-        <span :class="`result-${g.result}`">{{ RESULTS[g.result] }}</span>
-        <span>niv. {{ g.level }}</span>
-        <span>{{ g.accuracy ?? '—' }}{{ g.accuracy !== null && g.accuracy !== undefined ? ' %' : '' }}</span>
-        <button class="btn review" :disabled="!!opening" @click="review(g)">
-          {{ opening === g.date ? '…' : 'Revoir' }}
-        </button>
-      </div>
     </div>
   </section>
 </template>
@@ -273,11 +276,25 @@ label.rating:focus-within {
   text-align: right;
   outline: none;
 }
+.coach-note {
+  margin: 6px 0 0;
+}
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--advice);
+  font-size: inherit;
+  cursor: pointer;
+}
 .start {
   width: 100%;
   margin-top: 18px;
   padding: 13px;
   font-size: 16px;
+}
+.history {
+  margin-top: 22px;
 }
 .history-row {
   display: grid;
