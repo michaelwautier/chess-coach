@@ -1,0 +1,10 @@
+node_modules/
+dist/
+dist-artifact/
+# Copied from node_modules by scripts/copy-stockfish.mjs
+public/stockfish/
+*.log
+.DS_Store
+.env
+.env.*
+coverage/

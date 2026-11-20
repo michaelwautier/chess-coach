@@ -1,0 +1,4 @@
+dist
+dist-artifact
+public/stockfish
+package-lock.json
