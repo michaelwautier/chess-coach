@@ -78,6 +78,11 @@ API keys are billed per use and are separate from ChatGPT or Claude subscription
 behind Caddy/nginx). Serve `.wasm` files as `application/wasm` if possible (the loader also works without it).
 The engine is single-threaded, so no cross-origin isolation headers are needed.
 
+To serve the app from a sub-path, set `BASE_PATH` at build time (`BASE_PATH=/chess-coach/ npm run build`).
+
+The public version runs on GitHub Pages at <https://michaelwautier.github.io/chess-coach/>. The
+`.github/workflows/pages.yml` workflow builds and deploys it on every push to `main`.
+
 ## License
 
 GPL-3.0-or-later. Stockfish and chessground are GPL-3.0, so a hosted version must make its source code available
