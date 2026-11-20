@@ -175,22 +175,22 @@ History browsing: `viewPly` selects a past position. The board always renders th
 
 ### 1. Put the app online
 
-- **Publish the source.** The repository is private. Because of the GPL, a public site must give its users
-  access to the source: make the repository public, or link to a public copy, before going live.
-- **Hosting.** `npm run build` gives a static site. Options: GitHub Pages (free once the repository is public)
-  or Cloudflare Pages, deployed from CI on merge to `main`; or the owner's VPS behind Caddy/nginx. No
-  cross-origin isolation headers are needed (single-threaded engine). Serve `.wasm` as `application/wasm` if
-  possible.
-- **Security headers.** API keys live in the browser, so an XSS would leak them. Add a strict Content Security
-  Policy: `script-src 'self'` (plus `'wasm-unsafe-eval'` for the engine), `worker-src 'self' blob:`, and
-  `connect-src` limited to the provider APIs (`api.anthropic.com`, `api.openai.com`,
-  `generativelanguage.googleapis.com`) and the configurable OpenAI base URL if used. `applyAppearance` injects a
-  `<style>` element at runtime, so `style-src` needs `'unsafe-inline'` unless the piece sets move to static
-  stylesheets. Check that the blob worker fallback still works under the policy.
+Done: the repository is public, GitHub Pages deploys `main` (`.github/workflows/pages.yml`), production builds
+carry a Content Security Policy meta tag (`vite.config.ts`), and the footer links to the source and says where
+keys and games are kept.
+
+About the CSP: GitHub Pages cannot send headers, so the policy is a `<meta>` tag added at build time (not in
+dev, not in the artifact build). `script-src 'self' 'wasm-unsafe-eval'` refuses any injected script, which is
+what protects the API keys. `connect-src` stays open to `https:` and local servers because the OpenAI base URL
+can point to any relay; `style-src` needs `'unsafe-inline'` for the piece-set `<style>` from `applyAppearance`.
+`frame-ancestors` cannot be set from a meta tag. The WASM engine and its blob-worker fallback were checked under
+the policy.
+
+Left:
+
 - **Real-key check.** Play a few games with each provider and a real key: default model ids, streaming,
-  error messages (invalid key, quota, CORS).
-- Optional: domain name, a short privacy note (keys and games stay in the browser), a link to the source in the
-  footer.
+  error messages (invalid key, quota, CORS), and the model list in the settings.
+- Optional: a domain name.
 
 ### 2. Game history and review
 
