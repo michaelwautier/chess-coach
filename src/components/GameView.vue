@@ -187,13 +187,16 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
   gap: 10px;
   align-content: start;
 }
+/* Desktop: the board takes as much room as the window height allows, the side column the rest of the width. */
 @media (min-width: 900px) {
   .game {
-    grid-template-columns: minmax(0, 560px) minmax(320px, 1fr);
+    --board-size: max(320px, min(calc(100svh - 236px), calc(100vw - 420px)));
+    grid-template-columns: var(--board-size) minmax(340px, 1fr);
     align-items: start;
   }
   .board-column {
-    max-width: 560px;
+    width: var(--board-size);
+    max-width: none;
     margin: 0;
   }
 }

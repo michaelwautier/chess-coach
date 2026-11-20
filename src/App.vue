@@ -64,8 +64,6 @@ h1 {
   flex: 1;
 }
 main {
-  max-width: 1060px;
-  margin: 0 auto;
   padding: 10px;
 }
 footer {
