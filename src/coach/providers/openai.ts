@@ -7,6 +7,9 @@ import {
   type CompletionRequest,
 } from './types';
 
+/** Models the /models endpoint lists that cannot answer a chat prompt (embeddings, audio, images…). */
+const NON_CHAT_MODEL = /embedding|tts|whisper|transcribe|audio|realtime|dall-e|image|moderation/i;
+
 /**
  * OpenAI Chat Completions. `baseUrl` can point to any OpenAI-compatible endpoint
  * (a relay, OpenRouter, a local server…).
@@ -57,6 +60,9 @@ export class OpenAiProvider implements CoachProvider {
   async listModels(): Promise<string[]> {
     const response = await request(`${this.base}/models`, { headers: this.headers() });
     const body = (await response.json()) as { data: { id: string }[] };
-    return body.data.map((m) => m.id).sort();
+    return body.data
+      .map((m) => m.id)
+      .filter((id) => !NON_CHAT_MODEL.test(id))
+      .sort();
   }
 }

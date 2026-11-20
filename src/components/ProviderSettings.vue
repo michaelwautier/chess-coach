@@ -4,6 +4,7 @@ import { API_PROVIDERS, createApiProvider, type ApiProviderId } from '@/coach/pr
 import { coachErrorMessage } from '@/coach/runCoach';
 import type { ProviderChoice } from '@/game/types';
 import { useSettingsStore } from '@/stores/settings';
+import ModelSelect from './ModelSelect.vue';
 
 const store = useSettingsStore();
 
@@ -19,21 +20,33 @@ const choices = computed<{ value: ProviderChoice; label: string }[]>(() => [
 const API_IDS: ApiProviderId[] = ['anthropic', 'openai', 'gemini'];
 const isApi = (v: string): v is ApiProviderId => (API_IDS as string[]).includes(v);
 
-const editing = ref<ApiProviderId>(isApi(store.settings.provider) ? store.settings.provider : 'anthropic');
+// A specific provider edits its own key; only "auto" (first key filled in wins) lets the user pick
+// which key to edit, starting on the one currently in use.
+const keyInUse = (): ApiProviderId => API_IDS.find((id) => store.providers[id].apiKey) ?? 'anthropic';
+const autoTab = ref<ApiProviderId>(keyInUse());
 watch(
   () => store.settings.provider,
-  (p) => {
-    if (isApi(p)) editing.value = p;
+  (provider) => {
+    if (provider === 'auto') autoTab.value = keyInUse();
   },
+);
+const editing = computed<ApiProviderId>(() =>
+  isApi(store.settings.provider) ? store.settings.provider : autoTab.value,
 );
 
 const config = computed(() => store.providers[editing.value]);
 const info = computed(() => API_PROVIDERS[editing.value]);
 const showKey = ref(false);
 const showAdvanced = ref(false);
-const models = ref<string[]>([]);
 const status = ref('');
 const busy = ref(false);
+
+/** Models listed by each provider's API, loaded as soon as its key is filled in. */
+const listed = ref<Partial<Record<ApiProviderId, string[]>>>({});
+const modelOptions = computed(() => {
+  const models = listed.value[editing.value];
+  return models?.length ? models : [info.value.model, info.value.fastModel];
+});
 
 function choose(value: ProviderChoice): void {
   store.settings.provider = value;
@@ -59,30 +72,45 @@ async function testKey(): Promise<void> {
   }
 }
 
-async function loadModels(): Promise<void> {
-  busy.value = true;
-  status.value = 'Chargement des modèles…';
+async function refreshModels(): Promise<void> {
+  const id = editing.value;
+  const used = { ...store.providers[id] };
+  delete listed.value[id];
+  if (!used.apiKey) return;
   try {
-    models.value = await createApiProvider(editing.value, { ...config.value }).listModels();
-    status.value = `${models.value.length} modèles disponibles : choisis-en un dans les champs ci-dessous.`;
+    const models = await createApiProvider(id, used).listModels();
+    // Ignore the answer if the key or URL changed while it was loading.
+    const now = store.providers[id];
+    if (now.apiKey === used.apiKey && now.baseUrl === used.baseUrl) {
+      listed.value = { ...listed.value, [id]: models };
+    }
   } catch (e) {
-    status.value = coachErrorMessage(e);
-  } finally {
-    busy.value = false;
+    if (editing.value === id) status.value = `Liste des modèles indisponible : ${coachErrorMessage(e)}`;
   }
+}
+
+/** The key or the API URL changed: save, then list the models this connection offers. */
+function onConnectionChange(): void {
+  save();
+  status.value = '';
+  void refreshModels();
 }
 
 function resetModels(): void {
   config.value.model = info.value.model;
   config.value.fastModel = info.value.fastModel;
   config.value.baseUrl = info.value.baseUrl;
-  save();
+  onConnectionChange();
 }
 
-watch(editing, () => {
-  models.value = [];
-  status.value = '';
-});
+watch(
+  editing,
+  () => {
+    status.value = '';
+    if (!listed.value[editing.value]) void refreshModels();
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -105,7 +133,7 @@ watch(editing, () => {
     </p>
 
     <template v-if="store.settings.provider !== 'none' && store.settings.provider !== 'claude-app'">
-      <div class="tabs">
+      <div v-if="store.settings.provider === 'auto'" class="tabs">
         <span class="muted small">Clé à configurer :</span>
         <div class="seg">
           <button
@@ -113,7 +141,7 @@ watch(editing, () => {
             :key="id"
             type="button"
             :class="{ on: editing === id }"
-            @click="editing = id"
+            @click="autoTab = id"
           >
             {{ API_PROVIDERS[id].label }}
           </button>
@@ -129,7 +157,7 @@ watch(editing, () => {
           autocomplete="off"
           spellcheck="false"
           placeholder="Colle ta clé ici"
-          @change="save"
+          @change="onConnectionChange"
         />
         <button type="button" class="btn" @click="showKey = !showKey">
           {{ showKey ? 'Masquer' : 'Afficher' }}
@@ -141,44 +169,41 @@ watch(editing, () => {
       <div class="models">
         <div>
           <label :for="`model-${editing}`">Modèle (explications approfondies)</label>
-          <input
+          <ModelSelect
             :id="`model-${editing}`"
-            v-model.trim="config.model"
-            type="text"
-            list="model-list"
+            :key="`model-${editing}`"
+            v-model="config.model"
+            :options="modelOptions"
             @change="save"
           />
         </div>
         <div>
           <label :for="`fast-${editing}`">Modèle rapide</label>
-          <input
+          <ModelSelect
             :id="`fast-${editing}`"
-            v-model.trim="config.fastModel"
-            type="text"
-            list="model-list"
+            :key="`fast-${editing}`"
+            v-model="config.fastModel"
+            :options="modelOptions"
             @change="save"
           />
         </div>
       </div>
-      <datalist id="model-list">
-        <option v-for="m in models" :key="m" :value="m" />
-      </datalist>
+      <p v-if="!config.apiKey" class="muted small">
+        Renseigne ta clé pour voir tous les modèles disponibles.
+      </p>
 
       <button type="button" class="link small" @click="showAdvanced = !showAdvanced">
         {{ showAdvanced ? 'Masquer' : 'Afficher' }} les options avancées
       </button>
       <template v-if="showAdvanced">
         <label :for="`url-${editing}`">URL de l'API (relais ou service compatible)</label>
-        <input :id="`url-${editing}`" v-model.trim="config.baseUrl" type="url" @change="save" />
+        <input :id="`url-${editing}`" v-model.trim="config.baseUrl" type="url" @change="onConnectionChange" />
         <button type="button" class="btn small-btn" @click="resetModels">Valeurs par défaut</button>
       </template>
 
       <div class="btn-row">
         <button type="button" class="btn" :disabled="!config.apiKey || busy" @click="testKey">
           Tester la clé
-        </button>
-        <button type="button" class="btn" :disabled="!config.apiKey || busy" @click="loadModels">
-          Charger la liste des modèles
         </button>
       </div>
       <p v-if="status" class="small status">{{ status }}</p>
