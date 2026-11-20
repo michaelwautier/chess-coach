@@ -16,6 +16,8 @@ The UI is in French.
 - Coaching pauses: retry the move, see the solution, or continue (and go back to the pause if you continued
   by mistake).
 - On-demand advice during your turn, history browsing, end-of-game review with an AI summary, PGN export.
+- Replay of past games from the history list, with the judgements and the coach's explanations.
+- Exercises made from your own mistakes, blunders and missed chances, repeated at growing intervals.
 - Board color presets or custom colors, and 12 freely licensed piece sets (see `public/pieces/CREDITS.md`).
 - AI coach providers: Claude (Anthropic), OpenAI or any OpenAI-compatible API, Google Gemini, or the viewer's
   own Claude account when the app is published as a claude.ai artifact.
@@ -80,6 +82,9 @@ behind Caddy/nginx). Serve `.wasm` files as `application/wasm` if possible (the 
 The engine is single-threaded, so no cross-origin isolation headers are needed.
 
 To serve the app from a sub-path, set `BASE_PATH` at build time (`BASE_PATH=/chess-coach/ npm run build`).
+
+Production builds include a Content Security Policy `<meta>` tag (see `vite.config.ts`) that only lets the app's
+own scripts run, so an injected script cannot read the API keys stored in the browser.
 
 The public version runs on GitHub Pages at <https://michaelwautier.github.io/chess-coach/>. The
 `.github/workflows/pages.yml` workflow builds and deploys it on every push to `main`.

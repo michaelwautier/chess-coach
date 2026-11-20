@@ -62,7 +62,7 @@ const status = computed(() => {
     checking: 'Vérification de ton coup…',
     coaching: '⏸ Pendule en pause : regarde le coach',
     advice: '⏸ Pendule en pause : conseil',
-    over: 'Partie terminée',
+    over: game.replay ? 'Revue d’une partie passée' : 'Partie terminée',
   };
   return { text: texts[game.phase] ?? '', cls: game.phase };
 });
@@ -85,7 +85,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
         :name="`Stockfish · niveau ${game.levelPlayed}`"
         :captured="material.captured[game.engineColor]"
         :advantage="advantage(game.engineColor)"
-        :time-ms="game.clockMs(game.engineColor)"
+        :time-ms="game.replay ? null : game.clockMs(game.engineColor)"
         :running="game.clockRunning === game.engineColor"
         :paused="false"
         :color="game.engineColor"
@@ -102,7 +102,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
         :name="`Toi (${colorName(game.userColor)})`"
         :captured="material.captured[game.userColor]"
         :advantage="advantage(game.userColor)"
-        :time-ms="game.clockMs(game.userColor)"
+        :time-ms="game.replay ? null : game.clockMs(game.userColor)"
         :running="game.clockRunning === game.userColor"
         :paused="paused"
         :color="game.userColor"
@@ -154,6 +154,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
         :hints="game.hints"
         :adaptive="settings.settings.adaptive"
         :pgn="game.chess.pgn()"
+        :replay="game.replay"
         @review="game.reviewError"
         @again="game.newGame()"
         @settings="emit('settings')"

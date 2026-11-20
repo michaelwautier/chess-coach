@@ -16,10 +16,12 @@ import { lineScore, type InfoLine } from '@/engine/uci';
 import { adaptLevel, computeStats, judgeMove, opponentErrorClass } from '@/game/analysis';
 import { Analyst } from '@/game/analyst';
 import { ChessClock, type ClockState } from '@/game/clock';
+import { buildDetails, statsFromRecord, type DetailsSource } from '@/game/details';
 import {
   TIME_CONTROLS,
   emptyAnswer,
   type CoachAnswer,
+  type GameRecord,
   type GameResult,
   type Issue,
   type MoveEval,
@@ -30,6 +32,7 @@ import {
 import { continueUndoStage } from '@/game/undo';
 import type { Score } from '@/chess/types';
 import { useDialogStore } from './dialog';
+import { useDrillsStore } from './drills';
 import { useSettingsStore } from './settings';
 
 export interface BoardView {
@@ -100,6 +103,12 @@ export const useGameStore = defineStore('game', () => {
   let continuedFrom: { issueId: string; clock: ClockState } | null = null;
   /** Search of the player engine for its current move, stopped if "Continuer" is undone. */
   let engineSearchId: number | null = null;
+  /** Past game shown on the game screen (read-only), with whether its details were found. */
+  const replay = ref<{ record: GameRecord; hasDetails: boolean } | null>(null);
+  /** Finished game whose details are saved again when a coach answer completes. */
+  let detailsSource: DetailsSource | null = null;
+  /** Coach requests in progress, so a finished game's details are saved once they complete. */
+  const coachRuns = new Set<Promise<void>>();
 
   const engineColor = computed(() => other(userColor.value));
   const history = computed(() => {
@@ -250,6 +259,8 @@ export const useGameStore = defineStore('game', () => {
     liveShapes.value = [];
     continuedFrom = null;
     engineSearchId = null;
+    replay.value = null;
+    detailsSource = null;
     analyst.reset();
     phase.value = 'engine';
     await player.newGame();
@@ -407,22 +418,26 @@ export const useGameStore = defineStore('game', () => {
     fenAfter: string;
   }
 
-  async function evaluateUserMove(fenBefore: string, move: Move): Promise<Evaluation> {
+  function evaluateUserMove(fenBefore: string, move: Move): Promise<Evaluation> {
+    return evaluateMove(fenBefore, uciOf(move), chess.value);
+  }
+
+  /** Judges `uci` played from `fenBefore`; `after` is the game once the move is played (for draws by rule). */
+  async function evaluateMove(fenBefore: string, uci: string, after: Chess): Promise<Evaluation> {
     const pre = await analyst!.ensure(fenBefore, 10);
     const lines = pre.lines;
     const best = lines[0];
     const bestScore = lineScore(best);
-    const uci = uciOf(move);
-    const fenAfter = chess.value.fen();
+    const fenAfter = after.fen();
     let afterScore: Score = bestScore;
     let refutation: string[] = [];
     const matched = lines.find((l) => l.pv[0] === uci);
     if (matched) {
       afterScore = lineScore(matched);
       refutation = matched.pv.slice(1);
-    } else if (chess.value.isCheckmate()) {
+    } else if (after.isCheckmate()) {
       afterScore = { cp: null, mate: 1 };
-    } else if (chess.value.isGameOver()) {
+    } else if (after.isGameOver()) {
       afterScore = { cp: 0, mate: null };
     } else {
       const reply = await analyst!.evaluate(fenAfter);
@@ -433,6 +448,28 @@ export const useGameStore = defineStore('game', () => {
     }
     const verdict = judgeMove(bestScore, afterScore, best.pv[0] === uci);
     return { verdict, bestScore, afterScore, lines, refutation, fenAfter };
+  }
+
+  // ---- analysis outside a game (exercises) ------------------------------
+  /** Starts analysing a position in the background, when no game is being played. */
+  function startAnalysis(fen: string): void {
+    if (!ACTIVE_PHASES.includes(phase.value)) analyst?.start(fen);
+  }
+
+  function stopAnalysis(): void {
+    if (!ACTIVE_PHASES.includes(phase.value)) analyst?.stop();
+  }
+
+  /** Judges a move in a position, outside a game. Null if the engine is not ready or a game is running. */
+  async function judgeCandidate(
+    fen: string,
+    uci: string,
+  ): Promise<{ verdict: Evaluation['verdict']; refutation: string[] } | null> {
+    if (!analyst || ACTIVE_PHASES.includes(phase.value)) return null;
+    const after = new Chess(fen);
+    after.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] || undefined });
+    const ev = await evaluateMove(fen, uci, after);
+    return { verdict: ev.verdict, refutation: ev.refutation };
   }
 
   function recordOpponentError(ply: number, bestNow: Score, userLoss: number): OpponentError | null {
@@ -539,8 +576,8 @@ export const useGameStore = defineStore('game', () => {
     void requestIssueCoach(issue);
   }
 
-  function requestIssueCoach(issue: Issue): Promise<void> {
-    return runCoach(
+  async function requestIssueCoach(issue: Issue): Promise<void> {
+    const run = runCoach(
       settingsStore.coachProvider(),
       mistakePrompt(issue, promptContext()),
       MISTAKE_LABELS,
@@ -548,6 +585,13 @@ export const useGameStore = defineStore('game', () => {
       issue.coach,
       settingsStore.disableCoach,
     );
+    coachRuns.add(run);
+    try {
+      await run;
+    } finally {
+      coachRuns.delete(run);
+    }
+    if (phase.value === 'over') await persistDetails(detailsSource);
   }
 
   /** Board of the coaching pause: the hint, or the solution once it was shown. */
@@ -733,8 +777,9 @@ export const useGameStore = defineStore('game', () => {
       summary: emptyAnswer(),
     });
     result.value = r;
+    const date = new Date().toISOString();
     void settingsStore.addGame({
-      date: new Date().toISOString(),
+      date,
       color: userColor.value,
       tc: s.tc,
       level: levelBefore,
@@ -752,18 +797,30 @@ export const useGameStore = defineStore('game', () => {
       themes: issues.map((i) => i.coach.sections['THEME']).filter((x): x is string => !!x),
       pgn: chess.value.pgn(),
     });
+    // The details point to this game's own objects, so they can still be saved after a new game starts.
+    const source: DetailsSource = {
+      key: date,
+      stats,
+      issues: [...issues],
+      engineErrors: [...engineErrors.values()],
+      summary: r.summary,
+    };
+    detailsSource = source;
+    void persistDetails(source);
+    void useDrillsStore().addFromGame(date, source.issues);
     summaryRequest = summaryPrompt(
       { outcome, reason, stats, hints: hints.value, finalHistory: chess.value.history(), issues },
       promptContext(),
     );
-    // Not awaited: leaving the game must not wait for the review.
-    void retrySummary();
+    // Not awaited: leaving the game must not wait for the review. The details are saved again with the
+    // coach's answers that were still being written.
+    void Promise.allSettled([...coachRuns, retrySummary()]).then(() => persistDetails(source));
   }
 
-  function retrySummary(): Promise<void> {
+  async function retrySummary(): Promise<void> {
     const r = result.value;
-    if (!r || !summaryRequest) return Promise.resolve();
-    return runCoach(
+    if (!r || !summaryRequest) return;
+    await runCoach(
       settingsStore.coachProvider(),
       summaryRequest,
       SUMMARY_LABELS,
@@ -771,6 +828,73 @@ export const useGameStore = defineStore('game', () => {
       r.summary,
       settingsStore.disableCoach,
     );
+    if (phase.value === 'over') await persistDetails(detailsSource);
+  }
+
+  function persistDetails(source: DetailsSource | null): Promise<void> {
+    return source ? settingsStore.saveDetails(buildDetails(source)) : Promise.resolve();
+  }
+
+  // ---- replay of a past game ---------------------------------------------
+  /**
+   * Shows a saved game on the game screen, as at the end of a game: moves, judgements, the coach's
+   * explanations and summary. Games saved before details existed only get their moves and statistics.
+   */
+  async function openReplay(record: GameRecord): Promise<boolean> {
+    if (ACTIVE_PHASES.includes(phase.value)) return false;
+    const game = new Chess();
+    try {
+      game.loadPgn(record.pgn);
+    } catch (e) {
+      console.warn('saved game could not be read', e);
+      await dialog.ask('Cette partie ne peut pas être relue : son PGN est illisible.', [
+        { label: 'OK', value: true, primary: true },
+      ]);
+      return false;
+    }
+    const details = await settingsStore.loadDetails(record.date);
+    token++;
+    userColor.value = record.color;
+    levelPlayed.value = record.level;
+    chess.value = game;
+    const tc = TIME_CONTROLS[record.tc] ?? TIME_CONTROLS['10+0'];
+    clock.value = new ChessClock(tc.minutes * 60000, tc.increment * 1000);
+    issues.splice(0, issues.length, ...(details?.issues ?? []));
+    engineErrors.clear();
+    for (const e of details?.engineErrors ?? []) engineErrors.set(e.ply, e);
+    moveEvals.splice(0);
+    afterByPly.clear();
+    hints.value = record.hints;
+    currentIssue.value = null;
+    reviewIssue.value = null;
+    advice.value = null;
+    viewPly.value = null;
+    override.value = null;
+    liveShapes.value = [];
+    continuedFrom = null;
+    engineSearchId = null;
+    summaryRequest = '';
+    result.value = reactive<GameResult>({
+      outcome: record.result,
+      reason: record.reason,
+      stats: details?.stats ?? statsFromRecord(record),
+      levelBefore: record.level,
+      levelAfter: record.levelAfter,
+      levelNote: '',
+      summary: details?.summary ?? emptyAnswer(),
+    });
+    detailsSource = details
+      ? {
+          key: record.date,
+          stats: result.value.stats,
+          issues: [...issues],
+          engineErrors: [...engineErrors.values()],
+          summary: result.value.summary,
+        }
+      : null;
+    replay.value = { record, hasDetails: !!details };
+    phase.value = 'over';
+    return true;
   }
 
   function reviewError(issue: Issue): void {
@@ -826,6 +950,7 @@ export const useGameStore = defineStore('game', () => {
       if (!ok) return false;
       await endGame('loss', 'abandon');
     }
+    replay.value = null;
     phase.value = 'setup';
     return true;
   }
@@ -853,6 +978,7 @@ export const useGameStore = defineStore('game', () => {
     enginesReady,
     canBrowse,
     canUndoContinue: computed(() => continueUndo.value !== null),
+    replay,
     // clock
     clockMs,
     clockRunning: computed(() => {
@@ -882,5 +1008,9 @@ export const useGameStore = defineStore('game', () => {
     resign,
     offerDraw,
     leaveGame,
+    openReplay,
+    startAnalysis,
+    stopAnalysis,
+    judgeCandidate,
   };
 });

@@ -8,6 +8,8 @@ import {
   type ProviderId,
 } from '@/coach/providers';
 import type { CoachError } from '@/coach/providers/types';
+import type { GameDetails } from '@/game/details';
+import type { Drill } from '@/game/drills';
 import type { GameRecord, Settings } from '@/game/types';
 import { useCapability, type SampleFunction } from '@/platform/claudeRuntime';
 import { loadProviderConfigs, loadRememberKeys, saveProviderConfigs } from '@/storage/apiKeys';
@@ -75,6 +77,22 @@ export const useSettingsStore = defineStore('settings', () => {
     await refreshHistory();
   }
 
+  function saveDetails(details: GameDetails): Promise<void> {
+    return profile?.saveDetails(details) ?? Promise.resolve();
+  }
+
+  function loadDetails(key: string): Promise<GameDetails | null> {
+    return profile?.loadDetails(key) ?? Promise.resolve(null);
+  }
+
+  function loadDrills(): Promise<Drill[]> {
+    return profile?.loadDrills() ?? Promise.resolve([]);
+  }
+
+  function saveDrills(drills: Drill[]): Promise<void> {
+    return profile?.saveDrills(drills) ?? Promise.resolve();
+  }
+
   const activeProviderId = computed<ProviderId | null>(() => {
     const choice = settings.provider;
     if (choice === 'none') return null;
@@ -120,6 +138,10 @@ export const useSettingsStore = defineStore('settings', () => {
     insideClaude: computed(() => !!claudeSample.value),
     init,
     addGame,
+    saveDetails,
+    loadDetails,
+    loadDrills,
+    saveDrills,
     coachProvider,
     disableCoach,
   };

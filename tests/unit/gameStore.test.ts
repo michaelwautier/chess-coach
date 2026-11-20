@@ -1,6 +1,8 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SearchResult } from '@/engine/uci';
+import { sanitizeDetails, type GameDetails } from '@/game/details';
+import type { GameRecord } from '@/game/types';
 import { useDialogStore } from '@/stores/dialog';
 import { useGameStore } from '@/stores/game';
 import { useSettingsStore } from '@/stores/settings';
@@ -210,5 +212,93 @@ describe('undoing "Continuer"', () => {
     game.undoContinue();
     expect(game.board.fen).toBe(issue.fenBefore);
     expect(game.shapes).toHaveLength(2);
+  });
+});
+
+describe('replaying a past game', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({
+      toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'performance'],
+    });
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
+    setActivePinia(createPinia());
+    fake.searches = [];
+    fake.stopped = [];
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  /** Plays 1. f3 (blunder, continued) e5, resigns, and returns what was saved. */
+  async function finishGame() {
+    const settings = useSettingsStore();
+    const saved: { records: GameRecord[]; details: GameDetails[] } = { records: [], details: [] };
+    vi.spyOn(settings, 'addGame').mockImplementation(async (r) => void saved.records.push(r));
+    vi.spyOn(settings, 'saveDetails').mockImplementation(
+      async (d) => void saved.details.push(JSON.parse(JSON.stringify(d))),
+    );
+    const game = await startGame();
+    game.continueGame();
+    await engineReplies();
+    const resigned = game.resign();
+    useDialogStore().answer(true);
+    await resigned;
+    await vi.advanceTimersByTimeAsync(0);
+    return { game, settings, saved };
+  }
+
+  it('saves the details of a finished game and replays it', async () => {
+    const { game, settings, saved } = await finishGame();
+    const record = saved.records[0];
+    const details = saved.details.at(-1)!;
+    expect(details.key).toBe(record.date);
+    expect(details.issues.map((i) => [i.san, i.cls, i.status])).toEqual([['f3', 'blunder', 'continued']]);
+    expect(details.stats.counts.blunder).toBe(1);
+
+    vi.spyOn(settings, 'loadDetails').mockResolvedValue(sanitizeDetails(details));
+    await game.leaveGame();
+    expect(await game.openReplay(record)).toBe(true);
+    expect(game.phase).toBe('over');
+    expect(game.replay).toEqual({ record, hasDetails: true });
+    expect(game.userColor).toBe('w');
+    expect(game.history.map((m) => m.san)).toEqual(['f3', 'e5']);
+    expect(game.issues.map((i) => [i.san, i.status])).toEqual([['f3', 'continued']]);
+    expect(game.result).toMatchObject({ outcome: 'loss', reason: 'abandon', levelBefore: 9 });
+    expect(game.result?.stats.counts.blunder).toBe(1);
+
+    // The moves can be browsed and each error reviewed, as at the end of a game.
+    game.goToPly(0);
+    expect(game.board.fen).toBe(game.issues[0].fenAfter);
+    game.reviewError(game.issues[0]);
+    expect(game.board.fen).toBe(game.issues[0].fenBefore);
+
+    // Leaving the replay, or starting a game, ends it.
+    await game.leaveGame();
+    expect(game.phase).toBe('setup');
+    expect(game.replay).toBeNull();
+    await game.openReplay(record);
+    await game.newGame();
+    expect(game.replay).toBeNull();
+    expect(game.history).toHaveLength(0);
+  });
+
+  it('replays a game saved without details from its record alone', async () => {
+    const { game, settings, saved } = await finishGame();
+    vi.spyOn(settings, 'loadDetails').mockResolvedValue(null);
+    await game.leaveGame();
+    expect(await game.openReplay(saved.records[0])).toBe(true);
+    expect(game.replay?.hasDetails).toBe(false);
+    expect(game.issues).toHaveLength(0);
+    expect(game.history).toHaveLength(2);
+    expect(game.result?.stats.counts.blunder).toBe(1);
+  });
+
+  it('refuses to replay while a game is being played', async () => {
+    const game = await startGame();
+    const replayed = game.openReplay({ pgn: '1. e4 *' } as GameRecord);
+    expect(await replayed).toBe(false);
+    expect(game.phase).toBe('coaching');
   });
 });

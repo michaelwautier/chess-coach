@@ -2,18 +2,21 @@
 import { computed, onMounted, watchEffect } from 'vue';
 import { PIECE_SETS, applyAppearance } from './appearance/themes';
 import ConfirmDialog from './components/ConfirmDialog.vue';
+import DrillView from './components/DrillView.vue';
 import GameView from './components/GameView.vue';
 import SetupView from './components/SetupView.vue';
+import { useDrillsStore } from './stores/drills';
 import { useGameStore } from './stores/game';
 import { useSettingsStore } from './stores/settings';
 
 const game = useGameStore();
 const settings = useSettingsStore();
+const drills = useDrillsStore();
 
 watchEffect(() => applyAppearance(settings.settings));
 
 onMounted(() => {
-  void settings.init();
+  void settings.init().then(() => drills.load());
   void game.initEngines();
 });
 
@@ -43,7 +46,8 @@ async function openSettings(): Promise<void> {
     <button v-if="game.phase !== 'setup'" class="btn" @click="openSettings">⚙︎ Réglages</button>
   </header>
   <main>
-    <SetupView v-if="game.phase === 'setup'" />
+    <DrillView v-if="drills.session" />
+    <SetupView v-else-if="game.phase === 'setup'" />
     <GameView v-else @settings="openSettings" />
   </main>
   <ConfirmDialog />
@@ -52,6 +56,10 @@ async function openSettings(): Promise<void> {
     <a href="https://github.com/lichess-org/chessground">chessground</a> (GPLv3). Pièces : {{ pieceCredit }}.
     Règles : <a href="https://github.com/jhlywa/chess.js">chess.js</a>. Les explications sont générées par une
     IA à partir de l'analyse du moteur et peuvent contenir des erreurs.
+    <br />
+    Tes clés API, tes réglages et tes parties restent dans ce navigateur : les clés ne partent que vers le
+    fournisseur d'IA choisi. Code source (GPLv3) :
+    <a href="https://github.com/michaelwautier/chess-coach">github.com/michaelwautier/chess-coach</a>.
   </footer>
 </template>
 

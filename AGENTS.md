@@ -145,8 +145,13 @@ History browsing: `viewPly` selects a past position. The board always renders th
 - API keys: `src/storage/apiKeys.ts`, in localStorage only when "remember" is checked, otherwise in
   sessionStorage. Never stored with the settings or game history, never sent anywhere except the chosen
   provider.
-- A saved game (`GameRecord`) currently holds the PGN and the statistics only, not the per-move evaluations or
-  the coach's explanations.
+- A saved game is a `GameRecord` (PGN and statistics, in the game list) plus its `GameDetails`
+  (`src/game/details.ts`): the issues with the coach's answers, the engine's errors, the full statistics and
+  the end-of-game summary. Details are stored apart, one localStorage entry per game
+  (`chess-coach.details.<date>`, or `details/<date>` in the artifact database), keyed by the record's `date`.
+  They are saved when the game ends and again once the coach's pending answers and the summary complete. When
+  localStorage is full, the oldest details are dropped first; the records stay. `sanitizeDetails` validates
+  them on load. Games saved before details existed replay with their moves and statistics only.
 
 ### Appearance
 
@@ -175,60 +180,55 @@ History browsing: `viewPly` selects a past position. The board always renders th
 
 ### 1. Put the app online
 
-- **Publish the source.** The repository is private. Because of the GPL, a public site must give its users
-  access to the source: make the repository public, or link to a public copy, before going live.
-- **Hosting.** `npm run build` gives a static site. Options: GitHub Pages (free once the repository is public)
-  or Cloudflare Pages, deployed from CI on merge to `main`; or the owner's VPS behind Caddy/nginx. No
-  cross-origin isolation headers are needed (single-threaded engine). Serve `.wasm` as `application/wasm` if
-  possible.
-- **Security headers.** API keys live in the browser, so an XSS would leak them. Add a strict Content Security
-  Policy: `script-src 'self'` (plus `'wasm-unsafe-eval'` for the engine), `worker-src 'self' blob:`, and
-  `connect-src` limited to the provider APIs (`api.anthropic.com`, `api.openai.com`,
-  `generativelanguage.googleapis.com`) and the configurable OpenAI base URL if used. `applyAppearance` injects a
-  `<style>` element at runtime, so `style-src` needs `'unsafe-inline'` unless the piece sets move to static
-  stylesheets. Check that the blob worker fallback still works under the policy.
+Done: the repository is public, GitHub Pages deploys `main` (`.github/workflows/pages.yml`), production builds
+carry a Content Security Policy meta tag (`vite.config.ts`), and the footer links to the source and says where
+keys and games are kept.
+
+About the CSP: GitHub Pages cannot send headers, so the policy is a `<meta>` tag added at build time (not in
+dev, not in the artifact build). `script-src 'self' 'wasm-unsafe-eval'` refuses any injected script, which is
+what protects the API keys. `connect-src` stays open to `https:` and local servers because the OpenAI base URL
+can point to any relay; `style-src` needs `'unsafe-inline'` for the piece-set `<style>` from `applyAppearance`.
+`frame-ancestors` cannot be set from a meta tag. The WASM engine and its blob-worker fallback were checked under
+the policy.
+
+Left:
+
 - **Real-key check.** Play a few games with each provider and a real key: default model ids, streaming,
-  error messages (invalid key, quota, CORS).
-- Optional: domain name, a short privacy note (keys and games stay in the browser), a link to the source in the
-  footer.
+  error messages (invalid key, quota, CORS), and the model list in the settings.
+- Optional: a domain name.
 
 ### 2. Game history and review
 
-Goal: reopen a past game and replay it move by move, with the judgements and the coach's explanations.
+Done: "Revoir" on each row of the history card opens the game on the game screen in a read-only replay
+(`openReplay` in the game store, `phase` `over` with `replay` set): move list with markers, history browsing,
+the end-of-game panel with its summary, and each error with the coach's explanation. See Storage above.
 
-- **Data.** Extend `GameRecord` (or store a separate record keyed by game id) with, per ply: SAN/UCI, FEN after
-  the move, score before/after, class, and for issues the best move, the refutation and the coach's answer
-  (`raw` text). Keep the old records readable: make the new fields optional and validate on load.
-- **Size.** localStorage is limited to about 5 MB per origin. A 40-move game with coach texts is a few tens of
-  KB (estimate to confirm), so 50 full games should fit, but check the size on write and drop the oldest details first (keep the PGN and
-  stats). IndexedDB is the next step if more is needed.
-- **UI.** A "Revoir" button on each row of the history card in `SetupView`. Reuse the board and the `viewPly`
-  browsing from the game screen in a read-only review mode: move list with colored markers for
-  inaccuracy/mistake/blunder, the coach's explanation under the board when the selected move is an issue, the
-  accuracy graph if cheap to add.
-- **Re-analysis.** Old games (PGN only) can be re-analysed on demand with the analyst engine; ask the coach
-  again only when the user clicks, since it costs API calls.
-- **Tests.** Record serialization and migration of old records; computing markers from stored evaluations.
+Left:
+
+- **Re-analysis.** Games without details (or with the coach disabled) could be re-analysed on demand with the
+  analyst engine; ask the coach again only when the user clicks, since it costs API calls.
+- **Accuracy graph** along the move list, from per-move evaluations (not stored yet: `moveEvals` would need to
+  go into the details).
+- Only the 8 most recent games are listed; older ones are stored but not reachable from the UI.
 
 ### 3. Exercises from the user's own mistakes
 
-Goal: turn each mistake into a puzzle that comes back later (spaced repetition), so the user trains on the
-positions they actually get wrong.
+Done: at the end of a game, each mistake, blunder and missed chance (`issue.opp`) becomes an exercise
+(`src/game/drills.ts`, `src/stores/drills.ts`, `DrillView.vue`), one per position (FEN without move counters):
+the same mistake made again resets its schedule. They are stored under `chess-coach.drills` (or
+`drills/main` in the artifact database), 200 at most. The setup screen shows how many are due; a session
+takes up to 10, most overdue first.
 
-- **Source.** Every issue already has what a puzzle needs: `fenBefore`, the move played, `bestUci`, the
-  class and the top engine lines. Missed engine blunders (`issue.opp`) make good "punish it" exercises. Start
-  with mistakes and blunders; inaccuracies are often too subtle for a puzzle.
-- **Card.** `{ id, fen, played, best, cls, theme?, createdAt, dueAt, interval, streak }`, deduplicated by FEN.
-  Store under its own key (`chess-coach.drills`) or artifact collection, independent of the game history.
-- **Answer check.** Do not require the exact engine move: accept any move whose loss in winning chances is
-  under 0.1 compared with the best one (the same scale as `judgeMove`), re-checked with the analyst. Then show
-  the engine's line.
-- **Scheduling.** Simple Leitner-style intervals: 1, 3, 7, 14, 30 days. A correct answer moves to the next
-  interval, a wrong one goes back to 1 day. Retire a card after it is solved at 30 days.
-- **UI.** On the setup screen, "N exercices à revoir" opens a session: position, side to move, no clock,
-  hint button (reuse the coach with the stored explanation, or a new short prompt), retry or show the solution.
-  Optionally offer the due exercises before starting a new game.
-- **Tests.** Scheduling logic, answer acceptance against stored lines, deduplication.
+- **Answer check.** The best move is accepted at once; any other move is judged by the analyst like a game
+  move (`judgeCandidate` in the game store) and accepted if it loses less than 0.1 in winning chances and does
+  not let a short mate slip (`solves`). A wrong answer shows the engine's reply.
+- **Scheduling.** Leitner boxes: a new exercise is due the next day; each first-try success moves it to 3, 7,
+  14, then 30 days, after which it is retired; a miss (or showing the solution) brings it back to 1 day.
+  Only the first answer of a session counts; retrying is allowed but does not change the grade.
+- **Hint.** The coach's hint from the game if there was one, otherwise the square of the piece to move.
+
+Left: offering due exercises before a new game; a short coach prompt for exercises made while the coach was
+off; promotion choice (answers promote to a queen).
 
 ### Smaller items
 

@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue';
 import { MAX_LEVEL, MIN_LEVEL } from '@/engine/levels';
-import { TIME_CONTROLS, type CoachThreshold, type Settings } from '@/game/types';
+import { TIME_CONTROLS, type CoachThreshold, type GameRecord, type Settings } from '@/game/types';
 import { parseRating } from '@/storage/settings';
+import { useDrillsStore } from '@/stores/drills';
 import { useGameStore } from '@/stores/game';
 import { useSettingsStore } from '@/stores/settings';
 import AppearanceSettings from './AppearanceSettings.vue';
@@ -9,6 +11,13 @@ import ProviderSettings from './ProviderSettings.vue';
 
 const store = useSettingsStore();
 const game = useGameStore();
+const drills = useDrillsStore();
+
+const nextDrillText = computed(() => {
+  const next = drills.next;
+  if (next === null) return '';
+  return new Date(next).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+});
 
 const COLORS: { value: Settings['color']; label: string }[] = [
   { value: 'w', label: 'Blancs' },
@@ -29,6 +38,17 @@ const RESULTS = { win: 'Victoire', loss: 'Défaite', draw: 'Nulle' } as const;
 
 function setRating(field: 'ratingChesscom' | 'ratingLichess', value: string): void {
   store.settings[field] = parseRating(value);
+}
+
+const opening = ref('');
+
+async function review(record: GameRecord): Promise<void> {
+  opening.value = record.date;
+  try {
+    await game.openReplay(record);
+  } finally {
+    opening.value = '';
+  }
 }
 </script>
 
@@ -143,6 +163,34 @@ function setRating(field: 'ratingChesscom' | 'ratingLichess', value: string): vo
       </button>
     </div>
 
+    <div class="card drills">
+      <h3>Exercices</h3>
+      <p v-if="!drills.drills.length" class="muted small">
+        Tes erreurs, tes gaffes et les occasions manquées deviendront des exercices à refaire, de plus en plus
+        espacés (1, 3, 7, 14 puis 30 jours) tant que tu les réussis.
+      </p>
+      <template v-else>
+        <p v-if="drills.due.length">
+          {{ drills.due.length }} exercice{{ drills.due.length > 1 ? 's' : '' }} à faire, tiré{{
+            drills.due.length > 1 ? 's' : ''
+          }}
+          de tes parties.
+        </p>
+        <p v-else-if="nextDrillText" class="muted small">
+          Aucun exercice à faire pour l'instant. Prochain : {{ nextDrillText }}.
+        </p>
+        <p v-else class="muted small">Tous tes exercices sont acquis.</p>
+        <button
+          v-if="drills.due.length"
+          class="btn primary"
+          :disabled="!game.enginesReady"
+          @click="drills.start()"
+        >
+          S'entraîner
+        </button>
+      </template>
+    </div>
+
     <div class="card"><AppearanceSettings /></div>
 
     <div class="card"><ProviderSettings /></div>
@@ -155,6 +203,9 @@ function setRating(field: 'ratingChesscom' | 'ratingLichess', value: string): vo
         <span :class="`result-${g.result}`">{{ RESULTS[g.result] }}</span>
         <span>niv. {{ g.level }}</span>
         <span>{{ g.accuracy ?? '—' }}{{ g.accuracy !== null && g.accuracy !== undefined ? ' %' : '' }}</span>
+        <button class="btn review" :disabled="!!opening" @click="review(g)">
+          {{ opening === g.date ? '…' : 'Revoir' }}
+        </button>
       </div>
     </div>
   </section>
@@ -230,9 +281,14 @@ label.rating:focus-within {
 }
 .history-row {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 0.8fr 0.7fr;
+  grid-template-columns: 1.2fr 1fr 0.8fr 0.7fr auto;
+  align-items: center;
   gap: 6px;
   padding: 5px 0;
   border-top: 1px solid var(--line);
+}
+.history-row .review {
+  padding: 4px 10px;
+  font-size: 13px;
 }
 </style>
