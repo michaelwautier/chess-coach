@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, watchEffect } from 'vue';
+import { computed, onMounted, ref, watchEffect } from 'vue';
 import { PIECE_SETS, applyAppearance } from './appearance/themes';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import DrillView from './components/DrillView.vue';
 import GameView from './components/GameView.vue';
+import SettingsView from './components/SettingsView.vue';
 import SetupView from './components/SetupView.vue';
 import { useDrillsStore } from './stores/drills';
 import { useGameStore } from './stores/game';
@@ -32,7 +33,15 @@ const pieceCredit = computed(() => {
   return set ? `${set.label}, par ${set.author} (${set.license})` : '';
 });
 
-async function openSettings(): Promise<void> {
+/** The settings page replaces the home screen; games and exercises start from home only. */
+const settingsOpen = ref(false);
+
+function showSettings(open: boolean): void {
+  settingsOpen.value = open;
+  window.scrollTo(0, 0);
+}
+
+async function goHome(): Promise<void> {
   await game.leaveGame();
 }
 </script>
@@ -43,12 +52,17 @@ async function openSettings(): Promise<void> {
     <span class="chip" :class="engineChip">{{ game.engineStatus }}</span>
     <span class="chip" :class="coachChip">{{ settings.coachLabel }}</span>
     <span class="spacer" />
-    <button v-if="game.phase !== 'setup'" class="btn" @click="openSettings">⚙︎ Réglages</button>
+    <template v-if="!drills.session">
+      <button v-if="game.phase !== 'setup'" class="btn" @click="goHome">Accueil</button>
+      <button v-else-if="settingsOpen" class="btn" @click="showSettings(false)">← Accueil</button>
+      <button v-else class="btn" @click="showSettings(true)">⚙︎ Réglages</button>
+    </template>
   </header>
   <main>
     <DrillView v-if="drills.session" />
-    <SetupView v-else-if="game.phase === 'setup'" />
-    <GameView v-else @settings="openSettings" />
+    <GameView v-else-if="game.phase !== 'setup'" @home="goHome" />
+    <SettingsView v-else-if="settingsOpen" @close="showSettings(false)" />
+    <SetupView v-else @settings="showSettings(true)" />
   </main>
   <ConfirmDialog />
   <footer>

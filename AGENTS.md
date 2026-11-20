@@ -63,7 +63,7 @@ src/
   platform/     Optional bridge to the claude.ai artifact runtime
   appearance/   Board color themes and piece sets
   stores/       Pinia stores: game (main flow), settings, dialog
-  components/   Vue components (SetupView and GameView are the two screens)
+  components/   Vue components (screens: SetupView, SettingsView, GameView, DrillView)
   styles/       Global CSS and board CSS
 scripts/        copy-stockfish.mjs (copies and patches the engine build)
 public/         favicon, piece sets (public/pieces/<set>/<color><piece>.svg) and their licenses
