@@ -17,6 +17,23 @@ describe('ChessClock', () => {
     expect(clock.flagged()).toBe('b');
   });
 
+  it('puts back a snapshot and stops', () => {
+    let now = 0;
+    const clock = new ChessClock(60000, 2000, () => now);
+    const saved = clock.snapshot();
+    clock.addIncrement('w');
+    clock.start('b');
+    now = 4000;
+    expect(clock.snapshot()).toEqual({ w: 62000, b: 56000 });
+    clock.restore(saved);
+    expect(clock.running).toBeNull();
+    now = 9000;
+    expect(clock.snapshot()).toEqual({ w: 60000, b: 60000 });
+    clock.start('w');
+    now = 10000;
+    expect(saved).toEqual({ w: 60000, b: 60000 });
+  });
+
   it('formats remaining time', () => {
     expect(formatClock(600000)).toBe('10:00');
     expect(formatClock(61000)).toBe('1:01');

@@ -138,9 +138,11 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
         :issue="(game.reviewIssue ?? game.currentIssue)!"
         :live="!game.reviewIssue && game.phase === 'coaching'"
         :review="!!game.reviewIssue"
+        :undoable="!game.reviewIssue && game.canUndoContinue"
         @retry="game.retryMove()"
         @solution="game.showSolution()"
         @continue="game.continueGame()"
+        @undo="game.undoContinue()"
         @recoach="game.requestIssueCoach((game.reviewIssue ?? game.currentIssue)!)"
         @back="game.backToFinal()"
       />

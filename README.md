@@ -13,7 +13,8 @@ The UI is in French.
   that adjusts the level between games.
 - 5+3, 10+0, 10+5 and 15+10 time controls.
 - Move-by-move analysis with Lichess-style judgements (inaccuracy / mistake / blunder) and game accuracy.
-- Coaching pauses: retry the move, see the solution, or continue.
+- Coaching pauses: retry the move, see the solution, or continue (and go back to the pause if you continued
+  by mistake).
 - On-demand advice during your turn, history browsing, end-of-game review with an AI summary, PGN export.
 - Board color presets or custom colors, and 12 freely licensed piece sets (see `public/pieces/CREDITS.md`).
 - AI coach providers: Claude (Anthropic), OpenAI or any OpenAI-compatible API, Google Gemini, or the viewer's
