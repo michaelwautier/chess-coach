@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { computed, reactive, ref, shallowRef, toRaw } from 'vue';
+import { computed, reactive, ref, shallowRef, toRaw, watch } from 'vue';
 import {
   ClaudeAppProvider,
   createApiProvider,
@@ -17,6 +17,8 @@ import { createProfileStore, type ProfileStore } from '@/storage/profileStore';
 import { DEFAULT_SETTINGS, ratingText, sanitizeSettings } from '@/storage/settings';
 
 const API_ORDER: ApiProviderId[] = ['anthropic', 'openai', 'gemini'];
+/** Settings are written this long after the last change, so dragging the level slider is one write. */
+export const SETTINGS_SAVE_DELAY_MS = 300;
 
 export const useSettingsStore = defineStore('settings', () => {
   const settings = reactive<Settings>({ ...DEFAULT_SETTINGS });
@@ -28,12 +30,16 @@ export const useSettingsStore = defineStore('settings', () => {
   const coachDisabled = ref('');
   const history = ref<GameRecord[]>([]);
   let profile: ProfileStore | null = null;
+  let saveTimer: ReturnType<typeof setTimeout> | undefined;
 
   async function init(): Promise<void> {
     const [store, sample] = await Promise.all([createProfileStore(), useCapability('sample')]);
     profile = store;
     claudeSample.value = sample;
     Object.assign(settings, sanitizeSettings(await store.loadSettings()));
+    // From now on every change is saved, wherever it is made (setup screen, appearance, end of game).
+    watch(settings, scheduleSave, { deep: true });
+    if (typeof window !== 'undefined') window.addEventListener('pagehide', flushSettings);
     ready.value = true;
     await refreshHistory();
   }
@@ -42,9 +48,24 @@ export const useSettingsStore = defineStore('settings', () => {
     if (profile) history.value = await profile.recentGames(8);
   }
 
+  function scheduleSave(): void {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => void saveSettings(), SETTINGS_SAVE_DELAY_MS);
+  }
+
+  /** Writes a pending change right away (the page is being left or reloaded). */
+  function flushSettings(): void {
+    if (saveTimer !== undefined) void saveSettings();
+  }
+
   function saveSettings(): Promise<void> {
+    clearTimeout(saveTimer);
+    saveTimer = undefined;
     return profile?.saveSettings({ ...toRaw(settings) }) ?? Promise.resolve();
   }
+
+  // API keys and models are saved as they are typed, not only when the field loses focus.
+  watch([providers, rememberKeys], saveProviders, { deep: true });
 
   function saveProviders(): void {
     saveProviderConfigs(structuredClone(toRaw(providers)), rememberKeys.value);
@@ -116,8 +137,6 @@ export const useSettingsStore = defineStore('settings', () => {
     rating,
     insideClaude: computed(() => !!claudeSample.value),
     init,
-    saveSettings,
-    saveProviders,
     addGame,
     saveDetails,
     loadDetails,

@@ -50,15 +50,9 @@ const modelOptions = computed(() => {
 
 function choose(value: ProviderChoice): void {
   store.settings.provider = value;
-  void store.saveSettings();
-}
-
-function save(): void {
-  store.saveProviders();
 }
 
 async function testKey(): Promise<void> {
-  save();
   busy.value = true;
   status.value = 'Test en cours…';
   try {
@@ -89,9 +83,8 @@ async function refreshModels(): Promise<void> {
   }
 }
 
-/** The key or the API URL changed: save, then list the models this connection offers. */
+/** The key or the API URL changed: list the models this connection offers. */
 function onConnectionChange(): void {
-  save();
   status.value = '';
   void refreshModels();
 }
@@ -174,7 +167,6 @@ watch(
             :key="`model-${editing}`"
             v-model="config.model"
             :options="modelOptions"
-            @change="save"
           />
         </div>
         <div>
@@ -184,7 +176,6 @@ watch(
             :key="`fast-${editing}`"
             v-model="config.fastModel"
             :options="modelOptions"
-            @change="save"
           />
         </div>
       </div>
@@ -209,7 +200,7 @@ watch(
       <p v-if="status" class="small status">{{ status }}</p>
 
       <label class="check">
-        <input v-model="store.rememberKeys" type="checkbox" @change="save" />
+        <input v-model="store.rememberKeys" type="checkbox" />
         Se souvenir de mes clés sur cet appareil
       </label>
       <p class="muted small">
