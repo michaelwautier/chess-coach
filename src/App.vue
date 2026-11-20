@@ -36,7 +36,7 @@ async function openSettings(): Promise<void> {
 
 <template>
   <header class="top">
-    <h1>♞ Coach d'échecs</h1>
+    <h1>♞ Coach Chess</h1>
     <span class="chip" :class="engineChip">{{ game.engineStatus }}</span>
     <span class="chip" :class="coachChip">{{ settings.coachLabel }}</span>
     <span class="spacer" />
