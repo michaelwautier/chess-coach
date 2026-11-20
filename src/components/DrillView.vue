@@ -2,8 +2,8 @@
 import { Chess, type Square } from 'chess.js';
 import type { DrawShape } from 'chessground/draw';
 import { computed } from 'vue';
-import { CLASS_INFO, colorName } from '@/chess/constants';
-import { frSan } from '@/chess/notation';
+import { CLASS_INFO, colorName, possessive } from '@/chess/constants';
+import { frSan, pieceTypeAt } from '@/chess/notation';
 import { isRetired } from '@/game/drills';
 import { useDrillsStore } from '@/stores/drills';
 import { useGameStore } from '@/stores/game';
@@ -93,9 +93,13 @@ const prompt = computed(() => {
   return `${side} : trouve le meilleur coup.`;
 });
 
-const hint = computed(
-  () => d.value!.hint || `Regarde ta pièce en ${d.value!.bestUci.slice(0, 2)} (entourée en vert).`,
-);
+const hint = computed(() => {
+  const drill = d.value!;
+  if (drill.hint) return drill.hint;
+  const from = drill.bestUci.slice(0, 2);
+  const type = pieceTypeAt(drill.fen, from);
+  return `Regarde ${type ? possessive(type, 'ton') : 'la case'} en ${from} (case entourée en vert).`;
+});
 
 const verdict = computed(() => {
   const drill = d.value!;

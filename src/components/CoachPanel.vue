@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { CLASS_INFO } from '@/chess/constants';
+import { CLASS_INFO, possessive } from '@/chess/constants';
 import { formatScore } from '@/chess/evaluation';
-import { frSan } from '@/chess/notation';
+import { frSan, pieceTypeAt } from '@/chess/notation';
 import type { Issue } from '@/game/types';
 import CoachSection from './CoachSection.vue';
 import CoachStatus from './CoachStatus.vue';
@@ -24,7 +24,9 @@ const engineHint = computed(() => {
     return 'Tu avais un mat forcé en quelques coups : cherche les échecs et les coups qui enferment le roi adverse.';
   const r = issue.refutationUci[0];
   if (r && issue.cls !== 'inaccuracy') {
-    return `Regarde ce que l'adversaire peut faire maintenant avec sa pièce en ${r.slice(0, 2)} (entourée en rouge).`;
+    const type = pieceTypeAt(issue.fenAfter, r.slice(0, 2));
+    const what = type ? possessive(type, 'son') : 'ce qui est';
+    return `Regarde ce que l'adversaire peut faire maintenant avec ${what} en ${r.slice(0, 2)} (case entourée en rouge).`;
   }
   return "Un autre coup améliorait davantage ta position. Avant de rejouer, regarde quelle pièce est la moins active et ce que l'adversaire prépare.";
 });

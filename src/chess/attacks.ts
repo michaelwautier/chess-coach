@@ -158,11 +158,20 @@ export function attackersOf(
   return { active, pinned };
 }
 
-/** Attack/defence table computed by code, so the coach never has to count on the board. */
-export function attackTable(fen: string): string {
+/**
+ * Attack/defence table computed by code, so the coach never has to count on the board. With
+ * `userColor`, every line says which side belongs to the student and which to the engine.
+ */
+export function attackTable(fen: string, userColor?: Color): string {
   const chess = new Chess(fen);
   const pins = findPins(chess);
   const name = (sq: Square): string => `${PIECE_NAME[chess.get(sq)!.type]} ${sq}`;
+  /** "(Noirs)", or "(élève, Noirs)" / "(moteur, Blancs)". */
+  const tag = (c: Color): string =>
+    userColor ? `${c === userColor ? 'élève' : 'moteur'}, ${colorName(c)}` : colorName(c);
+  /** "les Noirs", or "l'élève" / "le moteur". */
+  const by = (c: Color): string =>
+    userColor ? (c === userColor ? "l'élève" : 'le moteur') : `les ${colorName(c)}`;
   const label = (a: Attacker): { text: string; order: number } => {
     const p = chess.get(a.square)!;
     let extra = a.behind ? ` en batterie derrière ${name(a.behind)}` : '';
@@ -197,46 +206,48 @@ export function attackTable(fen: string): string {
           const checking = chess.attackers(p.square, other(color));
           if (checking.length)
             lines.push(
-              `Roi ${p.square} (${colorName(color)}) : en échec par ${checking.map(name).join(', ')}.`,
+              `Roi ${p.square} (${tag(color)}) : en échec par ${by(other(color))} (${checking.map(name).join(', ')}).`,
             );
           continue;
         }
         const def = attackersOf(chess, p.square, color, pins);
         const e = isFeminine(p.type) ? 'e' : '';
         lines.push(
-          `${PIECE_NAME[p.type]} ${p.square} (${colorName(color)}) : attaqué${e} ${att.active.length} fois` +
-            `${att.active.length ? ` (${list(att.active)})` : ''}${pinnedNote(att.pinned)}` +
-            ` ; défendu${e} ${def.active.length} fois${def.active.length ? ` (${list(def.active)})` : ''}${pinnedNote(def.pinned)}.`,
+          `${PIECE_NAME[p.type]} ${p.square} (${tag(color)}) : attaqué${e} ${att.active.length} fois` +
+            `${att.active.length ? ` par ${by(other(color))} (${list(att.active)})` : ''}${pinnedNote(att.pinned)}` +
+            ` ; défendu${e} ${def.active.length} fois${def.active.length ? ` par ${by(color)} (${list(def.active)})` : ''}${pinnedNote(def.pinned)}.`,
         );
       }
     }
   }
   const pinLines = pins.map(
     (pin) =>
-      `${PIECE_NAME[pin.type]} ${pin.square} (${colorName(pin.color)}) cloué sur ${PIECE_NAME[pin.targetType]} ${pin.target}` +
-      ` par ${PIECE_NAME[pin.pinnerType]} ${pin.pinner} (${pin.absolute ? 'clouage absolu : il ne peut pas quitter la ligne' : 'clouage relatif'}).`,
+      `${PIECE_NAME[pin.type]} ${pin.square} (${tag(pin.color)}) cloué${isFeminine(pin.type) ? 'e' : ''} sur ${PIECE_NAME[pin.targetType]} ${pin.target}` +
+      ` par ${PIECE_NAME[pin.pinnerType]} ${pin.pinner} (${pin.absolute ? 'clouage absolu : impossible de quitter la ligne' : 'clouage relatif'}).`,
   );
   return [
-    lines.length ? lines.join('\n') : 'Aucune pièce attaquée.',
+    lines.length ? lines.join('\n') : 'Aucune pièce ni aucun pion attaqué.',
     pinLines.length ? `Clouages :\n${pinLines.join('\n')}` : 'Aucun clouage.',
   ].join('\n');
 }
 
-/** Pieces of `color` that are attacked and either undefended or attacked by a cheaper piece. */
+/** Pieces and pawns of `color` that are attacked and either undefended or attacked by something cheaper. */
 export function hangingPieces(chess: Chess, color: Color): string[] {
   const pins = findPins(chess);
   const out: string[] = [];
+  const value = (sq: Square): number => PIECE_VALUE[chess.get(sq)!.type] || 0;
   for (const row of chess.board()) {
     for (const p of row) {
       if (!p || p.color !== color || p.type === 'k') continue;
       const attackers = attackersOf(chess, p.square, other(color), pins).active.filter((a) => !a.behind);
       if (!attackers.length) continue;
       const defenders = attackersOf(chess, p.square, color, pins).active;
-      const cheapest = Math.min(...attackers.map((a) => PIECE_VALUE[chess.get(a.square)!.type] || 0));
-      if (!defenders.length || cheapest < PIECE_VALUE[p.type]) {
+      const cheapest = attackers.reduce((a, b) => (value(b.square) < value(a.square) ? b : a)).square;
+      if (!defenders.length || value(cheapest) < PIECE_VALUE[p.type]) {
         const e = isFeminine(p.type) ? 'e' : '';
+        const cheaper = `${PIECE_NAME[chess.get(cheapest)!.type]} ${cheapest}`;
         out.push(
-          `${PIECE_NAME[p.type]} ${p.square}${defenders.length ? ` (attaqué${e} par une pièce de moindre valeur)` : ` (non défendu${e})`}`,
+          `${PIECE_NAME[p.type]} ${p.square}${defenders.length ? ` (attaqué${e} par ${cheaper}, de moindre valeur)` : ` (non défendu${e})`}`,
         );
       }
     }

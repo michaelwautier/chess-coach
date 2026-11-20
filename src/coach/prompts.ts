@@ -1,4 +1,4 @@
-import { CLASS_INFO, colorName } from '@/chess/constants';
+import { CLASS_INFO, COLOR_ADJ_FEM, colorName, other } from '@/chess/constants';
 import { formatScore } from '@/chess/evaluation';
 import { frSan, movesText } from '@/chess/notation';
 import { attackTable } from '@/chess/attacks';
@@ -16,9 +16,20 @@ const PERSONA = (ctx: PromptContext) =>
   `Tu es un coach d'échecs humain, chaleureux mais direct, qui tutoie son élève et parle français. L'élève a un classement d'environ ${ctx.rating}.`;
 
 const GROUNDING = [
-  "- Pour compter les attaquants et défenseurs d'une pièce, ou dire qu'une pièce est en prise, utilise UNIQUEMENT les tableaux des attaques fournis (calculés par programme). Ne compte jamais toi-même sur l'échiquier.",
+  "- Pour compter les attaquants et défenseurs d'une pièce ou d'un pion, ou dire qu'une pièce ou un pion est en prise, utilise UNIQUEMENT les tableaux des attaques fournis (calculés par programme). Ne compte jamais toi-même sur l'échiquier.",
   '- Ne mentionne aucun coup, même une simple poussée de pion, qui ne figure pas dans les variantes du moteur ou dans les coups déjà joués. Avant de répondre, vérifie chaque fait chiffré contre les données.',
 ];
+
+/** Rules on words the model tends to misuse: pawns called pieces, the engine's pieces called "ta …". */
+function vocabulary(ctx: PromptContext): string[] {
+  const user = colorName(ctx.userColor);
+  const engine = colorName(other(ctx.userColor));
+  const adj = COLOR_ADJ_FEM[other(ctx.userColor)];
+  return [
+    "- Un pion n'est pas une pièce. Le mot « pièce » désigne seulement un cavalier, un fou, une tour ou une dame ; un pion s'appelle toujours « pion » (« ton pion e5 est attaqué », jamais « ta pièce en e5 » pour un pion) et le roi « le roi ». Pour parler des deux à la fois, dis « pièces et pions » ou « matériel ».",
+    `- L'élève joue les ${user}. « Ton », « ta », « tes » ne désignent que ses pièces et pions ${user.toLowerCase()} ; les pièces et pions ${engine.toLowerCase()} appartiennent au moteur, que tu appelles « l'adversaire » (« sa dame », « la dame adverse », « la dame ${adj} »). Ne dis jamais « ta dame ${adj} ». Dans les données, « élève » et « moteur » indiquent à qui appartient chaque pièce et chaque pion.`,
+  ];
+}
 
 const FRENCH_NOTATION =
   '- Écris les coups en notation algébrique française comme dans les données (R = Roi, D = Dame, T = Tour, F = Fou, C = Cavalier, pas de lettre pour les pions).';
@@ -32,8 +43,9 @@ export function mistakePrompt(issue: Issue, ctx: PromptContext): string {
     'RÈGLES STRICTES',
     "- Tout ce qui est concret (coups, variantes, gains de matériel, menaces) doit venir des données du moteur ci-dessous. N'invente aucune variante. Si les données ne permettent pas d'affirmer quelque chose, reste général.",
     ...GROUNDING,
+    ...vocabulary(ctx),
     `${FRENCH_NOTATION} Nomme aussi les pièces en toutes lettres quand ça aide (« ton cavalier en f3 »).`,
-    "- Explique le pourquoi avec les idées d'un entraîneur : menaces, pièces non défendues, coordination, activité des pièces, sécurité du roi, structure de pions, cases faibles, complexes de couleur (fou manquant), colonnes ouvertes, plans. Utilise les faits structurels fournis quand ils sont pertinents, sans les réciter.",
+    "- Explique le pourquoi avec les idées d'un entraîneur : menaces, pièces ou pions non défendus, coordination, activité des pièces, sécurité du roi, structure de pions, cases faibles, complexes de couleur (fou manquant), colonnes ouvertes, plans. Utilise les faits structurels fournis quand ils sont pertinents, sans les réciter.",
     "- Pour une imprécision, l'enjeu est souvent positionnel : dis ce que le meilleur coup apporte de plus. Pour une erreur ou une gaffe, montre d'abord le problème concret.",
     "- Adapte le vocabulaire au niveau de l'élève. Pas de Markdown, pas de listes, pas de compliments, pas de phrase d'introduction.",
     '',
@@ -41,7 +53,7 @@ export function mistakePrompt(issue: Issue, ctx: PromptContext): string {
     "INDICE: 1 à 2 phrases qui orientent l'élève vers le problème de son coup SANS donner le meilleur coup ni sa case d'arrivée.",
     'EXPLICATION: 3 à 5 phrases : pourquoi son coup est moins bon (appuie-toi sur la réponse du moteur) et ce que le meilleur coup apporte.',
     'LEÇON: 1 à 2 phrases : le principe général à retenir pour ses prochaines parties.',
-    'THÈME: 1 à 4 mots (par exemple « pièce non défendue », « clouage », « cases faibles », « roi exposé », « développement »).',
+    'THÈME: 1 à 4 mots (par exemple « pièce non défendue », « pion faible », « clouage », « cases faibles », « roi exposé », « développement »).',
     '',
     'DONNÉES',
     `Position avant le coup de l'élève (FEN) : ${issue.fenBefore}`,
@@ -59,10 +71,10 @@ export function mistakePrompt(issue: Issue, ctx: PromptContext): string {
     issue.refutationText
       ? `Meilleure réponse du moteur au coup joué, avec la suite : ${issue.refutationText}`
       : 'Le moteur ne donne pas de suite après le coup joué.',
-    `Tableau des attaques APRÈS le coup de l'élève (calculé par programme : batteries comprises, pièces clouées sur leur roi exclues) :\n${attackTable(issue.fenAfter)}`,
+    `Tableau des attaques APRÈS le coup de l'élève (calculé par programme : batteries comprises, pièces clouées sur leur roi exclues) :\n${attackTable(issue.fenAfter, ctx.userColor)}`,
     issue.hanging.length
-      ? `Pièces de l'élève attaquées et mal défendues juste après son coup : ${issue.hanging.join(' ; ')}.`
-      : "Aucune pièce de l'élève n'est attaquée sans défense juste après son coup (contrôle simple).",
+      ? `Pièces ou pions de l'élève attaqués et mal défendus juste après son coup : ${issue.hanging.join(' ; ')}.`
+      : "Aucune pièce ni aucun pion de l'élève n'est attaqué sans défense juste après son coup (contrôle simple).",
   ];
   return lines.filter((l): l is string => l !== null).join('\n');
 }
@@ -72,8 +84,9 @@ export function advicePrompt(fen: string, topLines: string[], history: string[],
   return [
     `${PERSONA(ctx)} Il joue les ${colorName(ctx.userColor)} contre un moteur ; c'est son tour et il te demande un conseil. La pendule est en pause.`,
     '',
-    "RÈGLES : appuie-toi uniquement sur les données du moteur pour le concret, n'invente aucune variante, ne donne PAS le coup du moteur ni sa case d'arrivée. Parle d'idées : menaces adverses, pièces non défendues, pièce la moins active, structure de pions, cases faibles, complexes de couleur, colonnes, sécurité du roi, plan. Notation française si tu cites un coup déjà joué. Pas de Markdown, pas de listes, pas de compliments.",
+    "RÈGLES : appuie-toi uniquement sur les données du moteur pour le concret, n'invente aucune variante, ne donne PAS le coup du moteur ni sa case d'arrivée. Parle d'idées : menaces adverses, pièces ou pions non défendus, pièce la moins active, structure de pions, cases faibles, complexes de couleur, colonnes, sécurité du roi, plan. Notation française si tu cites un coup déjà joué. Pas de Markdown, pas de listes, pas de compliments.",
     ...GROUNDING,
+    ...vocabulary(ctx),
     '',
     'FORMAT (texte brut, 2 rubriques dans cet ordre, chacune commençant par son étiquette en début de ligne) :',
     'CONSEIL: 2 à 3 phrases sur ce qui compte dans cette position et où chercher.',
@@ -123,6 +136,7 @@ export function summaryPrompt(data: SummaryData, ctx: PromptContext): string {
     "- Si des gaffes ont été annulées, dis clairement que le résultat aurait probablement été différent sans le coach, en t'appuyant sur les chances de gain après ces gaffes.",
     '- Cite les erreurs les plus coûteuses avec leur numéro de coup. Repère les tendances (phase de jeu, type de thème, répétition du même défaut).',
     "- Appuie-toi uniquement sur les données fournies, n'invente aucun coup ni variante. Notation française. Pas de Markdown, pas de listes à puces, pas de compliments creux.",
+    ...vocabulary(ctx),
     '',
     'FORMAT (texte brut, 3 rubriques dans cet ordre, chacune commençant par son étiquette en début de ligne) :',
     "BILAN: 3 à 4 phrases, honnêtes, centrées sur les erreurs du premier essai et ce qu'elles auraient coûté.",

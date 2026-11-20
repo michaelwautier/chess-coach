@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { possessive } from '@/chess/constants';
 import { formatScore } from '@/chess/evaluation';
-import { formatLine, uciLineToSan } from '@/chess/notation';
+import { formatLine, pieceTypeAt, uciLineToSan } from '@/chess/notation';
 import { lineScore } from '@/engine/uci';
 import type { AdviceState } from '@/stores/game';
 import CoachSection from './CoachSection.vue';
@@ -17,7 +18,10 @@ const best = computed(() => {
 });
 const engineHint = computed(() => {
   const line = props.advice.lines?.[0];
-  return line ? `La pièce à jouer est en ${line.pv[0].slice(0, 2)}.` : '';
+  if (!line) return '';
+  const from = line.pv[0].slice(0, 2);
+  const type = pieceTypeAt(props.advice.fen, from);
+  return type ? `C'est ${possessive(type, 'ton')} ${from} qu'il faut jouer.` : `Le coup part de ${from}.`;
 });
 </script>
 
