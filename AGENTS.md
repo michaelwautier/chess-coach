@@ -62,6 +62,7 @@ src/
   storage/      Settings, API keys, game history
   platform/     Optional bridge to the claude.ai artifact runtime
   appearance/   Board color themes and piece sets
+  audio/        Synthesized board sounds and sound sets
   stores/       Pinia stores: game (main flow), settings, dialog
   components/   Vue components (screens: SetupView, SettingsView, GameView, DrillView)
   styles/       Global CSS and board CSS
@@ -160,6 +161,18 @@ History browsing: `viewPly` selects a past position. The board always renders th
 `src/styles/board.css`) and injects one `<style>` with the piece images of the chosen set. To add a set: put the
 12 SVGs in `public/pieces/<id>/`, add it to `PIECE_SETS` with author and license, and credit it in
 `public/pieces/CREDITS.md`. A unit test checks that every listed set has its 12 files.
+
+### Sounds
+
+`src/audio/sounds.ts` synthesizes every sound with the Web Audio API: there are no audio files, so nothing to
+license and nothing for the CSP to allow. `moveSound` picks the sound of a move (check first, then promotion,
+capture, castling). Each set in `SOUND_SETS` (Bois, Doux, Crémeux, Cristal, Rétro, or Aucun) is a voice with two
+functions, `piece` (a piece set down) and `note` (one note of a chime); the recipes in `synthesize` are shared,
+e.g. a capture is two pieces and a check is a piece plus a note. To add a set, add a voice. The game store plays
+sounds on both sides' moves, when the coach stops the clock, at the end of a game and when stepping forward in
+the history; the drills store on the answer. Browsers keep audio suspended until a user gesture, so
+`unlockAudioOnGesture` resumes it on clicks and keys, and nothing plays before the first one. Sounds were tuned
+by measuring levels offline (`synthesize` accepts an `OfflineAudioContext`), not by ear.
 
 ## Testing
 

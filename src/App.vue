@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watchEffect } from 'vue';
 import { PIECE_SETS, applyAppearance } from './appearance/themes';
+import { configureSound, unlockAudioOnGesture } from './audio/sounds';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import DrillView from './components/DrillView.vue';
 import GameView from './components/GameView.vue';
@@ -15,8 +16,10 @@ const settings = useSettingsStore();
 const drills = useDrillsStore();
 
 watchEffect(() => applyAppearance(settings.settings));
+watchEffect(() => configureSound(settings.settings.soundSet, settings.settings.soundVolume / 100));
 
 onMounted(() => {
+  unlockAudioOnGesture();
   void settings.init().then(() => drills.load());
   void game.initEngines();
 });

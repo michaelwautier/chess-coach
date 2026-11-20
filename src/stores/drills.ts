@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
-import { Chess } from 'chess.js';
+import { Chess, type Move } from 'chess.js';
+import { moveSound, playSound } from '@/audio/sounds';
 import { computed, ref } from 'vue';
 import { formatLine, uciLineToSan } from '@/chess/notation';
 import {
@@ -106,11 +107,13 @@ export const useDrillsStore = defineStore('drills', () => {
     const d = current.value;
     if (!s || !d || s.state !== 'solving') return;
     const after = new Chess(d.fen);
+    let move: Move;
     try {
-      after.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] || undefined });
+      move = after.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] || undefined });
     } catch {
       return;
     }
+    playSound(moveSound(move));
     const san = uciLineToSan(d.fen, [uci])[0] ?? uci;
     s.answer = { uci, san, fenAfter: after.fen(), refutation: '', refutationUci: '' };
     s.notice = '';

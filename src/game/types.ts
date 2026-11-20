@@ -1,4 +1,5 @@
 import type { Square } from 'chess.js';
+import type { SoundSetId } from '@/audio/sounds';
 import type { Color, MoveClass, Score } from '@/chess/types';
 import type { ModelTier, ProviderId } from '@/coach/providers/types';
 
@@ -30,6 +31,9 @@ export interface Settings {
   boardLight: string;
   boardDark: string;
   pieceSet: string;
+  /** Board sound set ('off' for none) and its volume from 0 to 100. */
+  soundSet: SoundSetId;
+  soundVolume: number;
 }
 
 export type CoachStatus = 'idle' | 'loading' | 'streaming' | 'done' | 'error' | 'unavailable';

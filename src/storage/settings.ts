@@ -1,3 +1,4 @@
+import { SOUND_SETS } from '@/audio/sounds';
 import { BOARD_THEMES, DEFAULT_BOARD_THEME, DEFAULT_PIECE_SET, PIECE_SETS } from '@/appearance/themes';
 import { MAX_LEVEL, MIN_LEVEL } from '@/engine/levels';
 import { TIME_CONTROLS, type Settings } from '@/game/types';
@@ -16,6 +17,8 @@ export const DEFAULT_SETTINGS: Settings = {
   boardLight: DEFAULT_BOARD_THEME.light,
   boardDark: DEFAULT_BOARD_THEME.dark,
   pieceSet: DEFAULT_PIECE_SET,
+  soundSet: 'wood',
+  soundVolume: 70,
 };
 
 const isHexColor = (v: unknown): v is string => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
@@ -55,6 +58,15 @@ export function sanitizeSettings(raw: unknown): Settings {
       PIECE_SETS.map((p) => p.id),
       DEFAULT_SETTINGS.pieceSet,
     ),
+    soundSet: oneOf(
+      r.soundSet,
+      SOUND_SETS.map((x) => x.id),
+      DEFAULT_SETTINGS.soundSet,
+    ),
+    soundVolume:
+      typeof r.soundVolume === 'number' && Number.isFinite(r.soundVolume)
+        ? Math.max(0, Math.min(100, Math.round(r.soundVolume)))
+        : DEFAULT_SETTINGS.soundVolume,
   };
 }
 
