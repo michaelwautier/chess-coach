@@ -213,23 +213,22 @@ Left:
 
 ### 3. Exercises from the user's own mistakes
 
-Goal: turn each mistake into a puzzle that comes back later (spaced repetition), so the user trains on the
-positions they actually get wrong.
+Done: at the end of a game, each mistake, blunder and missed chance (`issue.opp`) becomes an exercise
+(`src/game/drills.ts`, `src/stores/drills.ts`, `DrillView.vue`), one per position (FEN without move counters):
+the same mistake made again resets its schedule. They are stored under `chess-coach.drills` (or
+`drills/main` in the artifact database), 200 at most. The setup screen shows how many are due; a session
+takes up to 10, most overdue first.
 
-- **Source.** Every issue already has what a puzzle needs: `fenBefore`, the move played, `bestUci`, the
-  class and the top engine lines. Missed engine blunders (`issue.opp`) make good "punish it" exercises. Start
-  with mistakes and blunders; inaccuracies are often too subtle for a puzzle.
-- **Card.** `{ id, fen, played, best, cls, theme?, createdAt, dueAt, interval, streak }`, deduplicated by FEN.
-  Store under its own key (`chess-coach.drills`) or artifact collection, independent of the game history.
-- **Answer check.** Do not require the exact engine move: accept any move whose loss in winning chances is
-  under 0.1 compared with the best one (the same scale as `judgeMove`), re-checked with the analyst. Then show
-  the engine's line.
-- **Scheduling.** Simple Leitner-style intervals: 1, 3, 7, 14, 30 days. A correct answer moves to the next
-  interval, a wrong one goes back to 1 day. Retire a card after it is solved at 30 days.
-- **UI.** On the setup screen, "N exercices à revoir" opens a session: position, side to move, no clock,
-  hint button (reuse the coach with the stored explanation, or a new short prompt), retry or show the solution.
-  Optionally offer the due exercises before starting a new game.
-- **Tests.** Scheduling logic, answer acceptance against stored lines, deduplication.
+- **Answer check.** The best move is accepted at once; any other move is judged by the analyst like a game
+  move (`judgeCandidate` in the game store) and accepted if it loses less than 0.1 in winning chances and does
+  not let a short mate slip (`solves`). A wrong answer shows the engine's reply.
+- **Scheduling.** Leitner boxes: a new exercise is due the next day; each first-try success moves it to 3, 7,
+  14, then 30 days, after which it is retired; a miss (or showing the solution) brings it back to 1 day.
+  Only the first answer of a session counts; retrying is allowed but does not change the grade.
+- **Hint.** The coach's hint from the game if there was one, otherwise the square of the piece to move.
+
+Left: offering due exercises before a new game; a short coach prompt for exercises made while the coach was
+off; promotion choice (answers promote to a queen).
 
 ### Smaller items
 

@@ -32,6 +32,7 @@ import {
 import { continueUndoStage } from '@/game/undo';
 import type { Score } from '@/chess/types';
 import { useDialogStore } from './dialog';
+import { useDrillsStore } from './drills';
 import { useSettingsStore } from './settings';
 
 export interface BoardView {
@@ -418,22 +419,26 @@ export const useGameStore = defineStore('game', () => {
     fenAfter: string;
   }
 
-  async function evaluateUserMove(fenBefore: string, move: Move): Promise<Evaluation> {
+  function evaluateUserMove(fenBefore: string, move: Move): Promise<Evaluation> {
+    return evaluateMove(fenBefore, uciOf(move), chess.value);
+  }
+
+  /** Judges `uci` played from `fenBefore`; `after` is the game once the move is played (for draws by rule). */
+  async function evaluateMove(fenBefore: string, uci: string, after: Chess): Promise<Evaluation> {
     const pre = await analyst!.ensure(fenBefore, 10);
     const lines = pre.lines;
     const best = lines[0];
     const bestScore = lineScore(best);
-    const uci = uciOf(move);
-    const fenAfter = chess.value.fen();
+    const fenAfter = after.fen();
     let afterScore: Score = bestScore;
     let refutation: string[] = [];
     const matched = lines.find((l) => l.pv[0] === uci);
     if (matched) {
       afterScore = lineScore(matched);
       refutation = matched.pv.slice(1);
-    } else if (chess.value.isCheckmate()) {
+    } else if (after.isCheckmate()) {
       afterScore = { cp: null, mate: 1 };
-    } else if (chess.value.isGameOver()) {
+    } else if (after.isGameOver()) {
       afterScore = { cp: 0, mate: null };
     } else {
       const reply = await analyst!.evaluate(fenAfter);
@@ -444,6 +449,28 @@ export const useGameStore = defineStore('game', () => {
     }
     const verdict = judgeMove(bestScore, afterScore, best.pv[0] === uci);
     return { verdict, bestScore, afterScore, lines, refutation, fenAfter };
+  }
+
+  // ---- analysis outside a game (exercises) ------------------------------
+  /** Starts analysing a position in the background, when no game is being played. */
+  function startAnalysis(fen: string): void {
+    if (!ACTIVE_PHASES.includes(phase.value)) analyst?.start(fen);
+  }
+
+  function stopAnalysis(): void {
+    if (!ACTIVE_PHASES.includes(phase.value)) analyst?.stop();
+  }
+
+  /** Judges a move in a position, outside a game. Null if the engine is not ready or a game is running. */
+  async function judgeCandidate(
+    fen: string,
+    uci: string,
+  ): Promise<{ verdict: Evaluation['verdict']; refutation: string[] } | null> {
+    if (!analyst || ACTIVE_PHASES.includes(phase.value)) return null;
+    const after = new Chess(fen);
+    after.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] || undefined });
+    const ev = await evaluateMove(fen, uci, after);
+    return { verdict: ev.verdict, refutation: ev.refutation };
   }
 
   function recordOpponentError(ply: number, bestNow: Score, userLoss: number): OpponentError | null {
@@ -782,6 +809,7 @@ export const useGameStore = defineStore('game', () => {
     };
     detailsSource = source;
     void persistDetails(source);
+    void useDrillsStore().addFromGame(date, source.issues);
     summaryRequest = summaryPrompt(
       { outcome, reason, stats, hints: hints.value, finalHistory: chess.value.history(), issues },
       promptContext(),
@@ -983,5 +1011,8 @@ export const useGameStore = defineStore('game', () => {
     offerDraw,
     leaveGame,
     openReplay,
+    startAnalysis,
+    stopAnalysis,
+    judgeCandidate,
   };
 });

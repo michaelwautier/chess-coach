@@ -1,5 +1,6 @@
 import { useCapability, type Db } from '@/platform/claudeRuntime';
 import { sanitizeDetails, type GameDetails } from '@/game/details';
+import { sanitizeDrills, type Drill } from '@/game/drills';
 import type { GameRecord, Settings } from '@/game/types';
 import { local, readJson, writeJson } from './browserStorage';
 
@@ -15,10 +16,14 @@ export interface ProfileStore {
   /** Saves (or replaces) the details of a game, to replay it later. */
   saveDetails(details: GameDetails): Promise<void>;
   loadDetails(key: string): Promise<GameDetails | null>;
+  /** Exercises made from the user's mistakes. */
+  loadDrills(): Promise<Drill[]>;
+  saveDrills(drills: Drill[]): Promise<void>;
 }
 
 const SETTINGS_KEY = 'chess-coach.settings';
 const GAMES_KEY = 'chess-coach.games';
+const DRILLS_KEY = 'chess-coach.drills';
 const MAX_LOCAL_GAMES = 50;
 /** One localStorage entry per game, so the oldest can be dropped one by one when space runs out. */
 const DETAILS_PREFIX = 'chess-coach.details.';
@@ -72,6 +77,12 @@ class LocalProfileStore implements ProfileStore {
   }
   async loadDetails(key: string): Promise<GameDetails | null> {
     return sanitizeDetails(readJson(local(), DETAILS_PREFIX + key));
+  }
+  async loadDrills(): Promise<Drill[]> {
+    return sanitizeDrills(readJson(local(), DRILLS_KEY));
+  }
+  async saveDrills(drills: Drill[]): Promise<void> {
+    writeJson(local(), DRILLS_KEY, drills);
   }
 }
 
@@ -142,6 +153,25 @@ class ArtifactProfileStore implements ProfileStore {
       console.warn('game details load failed', e);
     }
     return this.fallback.loadDetails(key);
+  }
+
+  async loadDrills(): Promise<Drill[]> {
+    try {
+      const snap = await this.db.doc('drills/main').get();
+      if (snap.exists) return sanitizeDrills(snap.data()?.cards);
+    } catch (e) {
+      console.warn('drills load failed', e);
+    }
+    return this.fallback.loadDrills();
+  }
+
+  async saveDrills(drills: Drill[]): Promise<void> {
+    await this.fallback.saveDrills(drills);
+    try {
+      await this.db.doc('drills/main').set({ cards: drills });
+    } catch (e) {
+      console.warn('drills save failed', e);
+    }
   }
 }
 
