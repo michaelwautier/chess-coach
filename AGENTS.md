@@ -94,8 +94,8 @@ Two engine instances run during a game:
 ### Game flow
 
 `src/stores/game.ts` owns the game. Its `phase` is one of `setup`, `user`, `checking`, `coaching`, `engine`,
-`advice`, `over`. A `token` is bumped on every new game or reset; async callbacks check it and stop if it
-changed.
+`advice`, `over`. A `token` is bumped on every new game, reset or undone "Continuer"; async callbacks check it
+and stop if it changed.
 
 1. `user`: the clock runs, the analyst analyses the current position.
 2. On a move, `onUserMove` stops the clock and goes to `checking`. `evaluateUserMove` compares the analyst's
@@ -106,7 +106,9 @@ changed.
    30 cp lost. Missing a mate in 3 or less counts as at least an inaccuracy.
 4. If the move is an issue at or above the threshold, the game goes to `coaching`: hint arrows on the board,
    coach request, then retry / solution / continue. Otherwise the clock gets its increment and the engine plays
-   (`engine`).
+   (`engine`). "Continuer" can be undone (`undoContinue`, "Revenir à l'erreur") while the engine thinks or
+   after its reply until the user moves again (`continueUndoStage` in `src/game/undo.ts`): the engine search is
+   stopped or its reply taken back, the clock is put back as it was during the pause, and coaching resumes.
 5. `opponentErrorClass` detects when the engine's last move gave the user a big chance (gain in winning chances
    ≥ 0.2 or 0.3, at least 80 cp, user at least 45% win). If the user then misses it, the coach points it out.
 6. `advice` is the on-demand "Conseil" button during the user's turn. `over` shows the review, the AI summary

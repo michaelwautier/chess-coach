@@ -15,7 +15,7 @@ import { levelConfig, pickEngineMove } from '@/engine/levels';
 import { lineScore, type InfoLine } from '@/engine/uci';
 import { adaptLevel, computeStats, judgeMove, opponentErrorClass } from '@/game/analysis';
 import { Analyst } from '@/game/analyst';
-import { ChessClock } from '@/game/clock';
+import { ChessClock, type ClockState } from '@/game/clock';
 import {
   TIME_CONTROLS,
   emptyAnswer,
@@ -27,6 +27,7 @@ import {
   type Outcome,
   type Phase,
 } from '@/game/types';
+import { continueUndoStage } from '@/game/undo';
 import type { Score } from '@/chess/types';
 import { useDialogStore } from './dialog';
 import { useSettingsStore } from './settings';
@@ -95,6 +96,10 @@ export const useGameStore = defineStore('game', () => {
   let analyst: Analyst | null = null;
   let token = 0;
   let summaryRequest = '';
+  /** Clock at the moment the user left a coaching pause with "Continuer", put back if they undo it. */
+  let continuedFrom: { issueId: string; clock: ClockState } | null = null;
+  /** Search of the player engine for its current move, stopped if "Continuer" is undone. */
+  let engineSearchId: number | null = null;
 
   const engineColor = computed(() => other(userColor.value));
   const history = computed(() => {
@@ -243,6 +248,8 @@ export const useGameStore = defineStore('game', () => {
     viewPly.value = null;
     override.value = null;
     liveShapes.value = [];
+    continuedFrom = null;
+    engineSearchId = null;
     analyst.reset();
     phase.value = 'engine';
     await player.newGame();
@@ -279,9 +286,12 @@ export const useGameStore = defineStore('game', () => {
     const started = performance.now();
     const level = levelConfig(levelPlayed.value);
     const cap = Math.round(Math.max(200, Math.min(4000, clock.value.remaining(color) / 30)));
-    const res = await player.search(chess.value.fen(), `go depth ${level.depth} movetime ${cap}`, {
+    const search = player.search(chess.value.fen(), `go depth ${level.depth} movetime ${cap}`, {
       multipv: level.k,
-    }).promise;
+    });
+    engineSearchId = search.id;
+    const res = await search.promise;
+    if (engineSearchId === search.id) engineSearchId = null;
     if (t !== token || phase.value !== 'engine') return;
     const uci = pickEngineMove(res, levelPlayed.value, chess.value);
     const target = engineThinkTime();
@@ -321,6 +331,11 @@ export const useGameStore = defineStore('game', () => {
     promotionColor.value = null;
     resolvePromotion?.(piece);
     resolvePromotion = null;
+  }
+
+  /** Closes the promotion picker; the pending move is then dropped because the token changed. */
+  function cancelPromotion(): void {
+    if (promotionColor.value) choosePromotion('q');
   }
 
   async function onUserMove(orig: Square, dest: Square): Promise<void> {
@@ -536,14 +551,18 @@ export const useGameStore = defineStore('game', () => {
     );
   }
 
+  /** Board of the coaching pause: the hint, or the solution once it was shown. */
+  function showCoachingBoard(issue: Issue): void {
+    if (!issue.solutionShown) return showHint(issue);
+    override.value = { fen: issue.fenBefore };
+    liveShapes.value = solutionShapes(issue);
+  }
+
   function showSolution(): void {
     const issue = currentIssue.value;
     if (!issue) return;
     issue.solutionShown = true;
-    if (phase.value === 'coaching') {
-      override.value = { fen: issue.fenBefore };
-      liveShapes.value = solutionShapes(issue);
-    }
+    if (phase.value === 'coaching') showCoachingBoard(issue);
   }
 
   function retryMove(): void {
@@ -560,10 +579,40 @@ export const useGameStore = defineStore('game', () => {
     const issue = currentIssue.value;
     if (!issue || phase.value !== 'coaching') return;
     issue.status = 'continued';
+    continuedFrom = { issueId: issue.id, clock: clock.value.snapshot() };
     override.value = null;
     liveShapes.value = [];
     phase.value = 'engine';
     proceedAfterUserMove();
+  }
+
+  const continueUndo = computed(() =>
+    continueUndoStage(currentIssue.value, phase.value, history.value.length),
+  );
+
+  /**
+   * Takes back "Continuer": stops the engine's search or takes back its reply, puts the clock back as it
+   * was during the pause (without the increment) and shows the coaching pause again.
+   */
+  function undoContinue(): void {
+    const issue = currentIssue.value;
+    const stage = continueUndo.value;
+    if (!issue || !stage || continuedFrom?.issueId !== issue.id) return;
+    token++;
+    cancelPromotion();
+    if (engineSearchId !== null) player?.stop(engineSearchId);
+    engineSearchId = null;
+    analyst?.stop();
+    clock.value.restore(continuedFrom.clock);
+    continuedFrom = null;
+    if (stage === 'replied') {
+      chess.value.undo();
+      bumpPosition();
+    }
+    issue.status = 'open';
+    viewPly.value = null;
+    phase.value = 'coaching';
+    showCoachingBoard(issue);
   }
 
   // ---- on-demand advice --------------------------------------------------
@@ -805,6 +854,7 @@ export const useGameStore = defineStore('game', () => {
     engineStatus,
     enginesReady,
     canBrowse,
+    canUndoContinue: computed(() => continueUndo.value !== null),
     // clock
     clockMs,
     clockRunning: computed(() => {
@@ -819,6 +869,7 @@ export const useGameStore = defineStore('game', () => {
     showSolution,
     retryMove,
     continueGame,
+    undoContinue,
     requestIssueCoach,
     requestAdvice,
     retryAdviceCoach,

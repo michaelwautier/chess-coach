@@ -7,8 +7,8 @@ import type { Issue } from '@/game/types';
 import CoachSection from './CoachSection.vue';
 import CoachStatus from './CoachStatus.vue';
 
-const props = defineProps<{ issue: Issue; live: boolean; review: boolean }>();
-const emit = defineEmits<{ retry: []; solution: []; continue: []; recoach: []; back: [] }>();
+const props = defineProps<{ issue: Issue; live: boolean; review: boolean; undoable?: boolean }>();
+const emit = defineEmits<{ retry: []; solution: []; continue: []; undo: []; recoach: []; back: [] }>();
 
 const info = computed(() => CLASS_INFO[props.issue.cls]);
 const showSolution = computed(() => props.issue.solutionShown || props.review);
@@ -47,6 +47,11 @@ const engineHint = computed(() => {
       {{ issue.status === 'retried' ? 'Coup rejoué.' : 'Partie reprise.' }} Le coach continue d'écrire
       ci-dessous si besoin.
     </p>
+    <div v-if="undoable" class="btn-row">
+      <button class="btn" title="Annule « Continuer » et remet la pendule en pause" @click="emit('undo')">
+        ↶ Revenir à l'erreur
+      </button>
+    </div>
 
     <CoachSection title="Indice" :text="sections['INDICE'] || engineHint" variant="hint" />
 

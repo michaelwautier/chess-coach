@@ -1,5 +1,8 @@
 import type { Color } from '@/chess/types';
 
+/** Remaining time of both sides, in milliseconds. */
+export type ClockState = Record<Color, number>;
+
 /** Chess clock with increment. Time is measured with a monotonic clock. */
 export class ChessClock {
   remainingMs: Record<Color, number>;
@@ -33,6 +36,17 @@ export class ChessClock {
 
   addIncrement(color: Color): void {
     this.remainingMs[color] += this.incrementMs;
+  }
+
+  /** Remaining time of both sides at this instant. */
+  snapshot(): ClockState {
+    return { w: this.remaining('w'), b: this.remaining('b') };
+  }
+
+  /** Stops the clock and puts back the remaining times of a snapshot. */
+  restore(state: ClockState): void {
+    this.running = null;
+    this.remainingMs = { ...state };
   }
 
   /** The color whose time just ran out, if any. */
