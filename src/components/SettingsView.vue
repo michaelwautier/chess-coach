@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AppearanceSettings from './AppearanceSettings.vue';
 import ProviderSettings from './ProviderSettings.vue';
+import SoundSettings from './SoundSettings.vue';
 
 const emit = defineEmits<{ close: [] }>();
 </script>
@@ -9,6 +10,7 @@ const emit = defineEmits<{ close: [] }>();
   <section class="settings">
     <h2>Réglages</h2>
     <div class="card"><AppearanceSettings /></div>
+    <div class="card"><SoundSettings /></div>
     <div class="card"><ProviderSettings /></div>
     <button class="btn primary done" @click="emit('close')">Retour à l'accueil</button>
   </section>

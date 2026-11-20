@@ -19,6 +19,8 @@ The UI is in French.
 - Replay of past games from the history list, with the judgements and the coach's explanations.
 - Exercises made from your own mistakes, blunders and missed chances, repeated at growing intervals.
 - Board color presets or custom colors, and 12 freely licensed piece sets (see `public/pieces/CREDITS.md`).
+- Sounds for moves, captures, castling, checks, promotions, coaching pauses and game ends, in five synthesized
+  styles (wood, soft, creamy, glass, 8-bit) or none, with a volume setting.
 - AI coach providers: Claude (Anthropic), OpenAI or any OpenAI-compatible API, Google Gemini, or the viewer's
   own Claude account when the app is published as a claude.ai artifact.
 

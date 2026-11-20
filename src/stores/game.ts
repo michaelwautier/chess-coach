@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { Chess, type Move, type Square } from 'chess.js';
 import type { DrawShape } from 'chessground/draw';
 import { computed, reactive, ref, shallowRef, triggerRef } from 'vue';
+import { moveSound, playSound } from '@/audio/sounds';
 import { hangingPieces } from '@/chess/attacks';
 import { CLASS_INFO, other } from '@/chess/constants';
 import { formatScore, negate, scoreCp } from '@/chess/evaluation';
@@ -311,12 +312,18 @@ export const useGameStore = defineStore('game', () => {
     clock.value.stop();
     if (clock.value.remaining(color) <= 0) return onFlag(color);
     if (!uci) return finishByRules();
+    let played: Move;
     try {
-      chess.value.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] || undefined });
+      played = chess.value.move({
+        from: uci.slice(0, 2),
+        to: uci.slice(2, 4),
+        promotion: uci[4] || undefined,
+      });
     } catch (e) {
       console.error('engine returned an illegal move', uci, e);
-      chess.value.move(chess.value.moves()[0]);
+      played = chess.value.move(chess.value.moves()[0]);
     }
+    playSound(moveSound(played));
     clock.value.addIncrement(color);
     bumpPosition();
     if (chess.value.isGameOver()) return finishByRules();
@@ -370,6 +377,7 @@ export const useGameStore = defineStore('game', () => {
       bumpPosition();
       return;
     }
+    playSound(moveSound(move));
     clock.value.stop();
     advice.value = null;
     liveShapes.value = [];
@@ -573,6 +581,8 @@ export const useGameStore = defineStore('game', () => {
     phase.value = 'coaching';
     currentIssue.value = issue;
     showHint(issue);
+    // After the move's own sound: the clock just stopped for the coach.
+    playSound('coach', 150);
     void requestIssueCoach(issue);
   }
 
@@ -732,6 +742,11 @@ export const useGameStore = defineStore('game', () => {
     override.value = null;
     if (phase.value === 'over') liveShapes.value = [];
     const target = Math.max(-1, Math.min(last, ply));
+    // Stepping forward one move plays its sound, as on the live board.
+    if (target >= 0 && target === (viewPly.value ?? last) + 1) {
+      const move = chess.value.history({ verbose: true })[target];
+      if (move) playSound(moveSound(move));
+    }
     viewPly.value = target >= last ? null : target;
   }
 
@@ -750,6 +765,7 @@ export const useGameStore = defineStore('game', () => {
     token++;
     phase.value = 'over';
     clock.value.stop();
+    playSound(outcome, 350);
     analyst?.stop();
     advice.value = null;
     currentIssue.value = null;
