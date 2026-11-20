@@ -7,7 +7,8 @@ const props = defineProps<{
   name: string;
   captured: PieceType[];
   advantage: number;
-  timeMs: number;
+  /** Null hides the clock (replay of a past game). */
+  timeMs: number | null;
   running: boolean;
   paused: boolean;
   color: Color;
@@ -23,7 +24,9 @@ const material = computed(
   <div class="player">
     <span class="name">{{ name }}</span>
     <span class="material">{{ material }}</span>
-    <span class="clock" :class="{ running, low: timeMs < 20000, paused }">{{ formatClock(timeMs) }}</span>
+    <span v-if="timeMs !== null" class="clock" :class="{ running, low: timeMs < 20000, paused }">{{
+      formatClock(timeMs)
+    }}</span>
   </div>
 </template>
 

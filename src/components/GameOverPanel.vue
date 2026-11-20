@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import { CLASS_INFO } from '@/chess/constants';
 import { frSan } from '@/chess/notation';
-import type { GameResult, Issue } from '@/game/types';
+import type { GameRecord, GameResult, Issue } from '@/game/types';
 import CoachSection from './CoachSection.vue';
 import CoachStatus from './CoachStatus.vue';
 
@@ -12,6 +12,8 @@ const props = defineProps<{
   hints: number;
   adaptive: boolean;
   pgn: string;
+  /** Set when showing a past game rather than the one just played. */
+  replay?: { record: GameRecord; hasDetails: boolean } | null;
 }>();
 const emit = defineEmits<{ review: [issue: Issue]; again: []; settings: []; resummarize: [] }>();
 
@@ -32,12 +34,23 @@ const detailsText = computed(() => {
   return parts.join(' ');
 });
 
+const replayDate = computed(() => {
+  const record = props.replay?.record;
+  if (!record) return '';
+  const d = new Date(record.date);
+  const day = d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+  const time = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return `Partie du ${day} à ${time} · ${record.tc}`;
+});
+
 const levelText = computed(() => {
   const r = props.result;
   const parts = [
-    r.levelAfter !== r.levelBefore
-      ? `Niveau du moteur : ${r.levelBefore} → ${r.levelAfter} pour la prochaine partie.`
-      : `Niveau du moteur : ${r.levelBefore}${props.adaptive ? ` (inchangé${r.levelNote ? ` : ${r.levelNote}` : ''})` : ''}.`,
+    props.replay
+      ? `Niveau du moteur : ${r.levelBefore}.`
+      : r.levelAfter !== r.levelBefore
+        ? `Niveau du moteur : ${r.levelBefore} → ${r.levelAfter} pour la prochaine partie.`
+        : `Niveau du moteur : ${r.levelBefore}${props.adaptive ? ` (inchangé${r.levelNote ? ` : ${r.levelNote}` : ''})` : ''}.`,
   ];
   if (stats.value.retried) parts.push(`${stats.value.retried} coup(s) rejoué(s).`);
   if (props.hints) parts.push(`${props.hints} conseil(s) demandé(s).`);
@@ -62,6 +75,11 @@ async function copyPgn(): Promise<void> {
     <div class="title" :class="`result-${result.outcome}`">
       {{ TITLES[result.outcome] }} <span class="muted">· {{ result.reason }}</span>
     </div>
+    <p v-if="replay" class="muted small date">{{ replayDate }}</p>
+    <p v-if="replay && !replay.hasDetails" class="small note">
+      Partie enregistrée avant la revue détaillée : tu peux rejouer les coups, mais les jugements coup par
+      coup et les explications du coach n'ont pas été gardés.
+    </p>
     <div class="stats">
       <div>
         <b>{{ pct(stats.accuracy) }}</b><span>précision 1er essai</span>
@@ -103,7 +121,7 @@ async function copyPgn(): Promise<void> {
 
     <div class="btn-row">
       <button class="btn primary" @click="emit('again')">Nouvelle partie</button>
-      <button class="btn" @click="emit('settings')">Réglages</button>
+      <button class="btn" @click="emit('settings')">{{ replay ? 'Retour' : 'Réglages' }}</button>
       <button class="btn" @click="copyPgn">Copier le PGN</button>
     </div>
     <p v-if="pgnNote" class="small muted">{{ pgnNote }}</p>
@@ -115,6 +133,14 @@ async function copyPgn(): Promise<void> {
 .title {
   font-size: 20px;
   font-weight: 700;
+}
+.date {
+  margin: 2px 0 0;
+}
+.note {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--panel-2);
 }
 .stats {
   display: grid;

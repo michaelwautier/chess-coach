@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 import { MAX_LEVEL, MIN_LEVEL } from '@/engine/levels';
-import { TIME_CONTROLS, type CoachThreshold, type Settings } from '@/game/types';
+import { TIME_CONTROLS, type CoachThreshold, type GameRecord, type Settings } from '@/game/types';
 import { parseRating } from '@/storage/settings';
 import { useGameStore } from '@/stores/game';
 import { useSettingsStore } from '@/stores/settings';
@@ -29,6 +30,17 @@ const RESULTS = { win: 'Victoire', loss: 'Défaite', draw: 'Nulle' } as const;
 
 function setRating(field: 'ratingChesscom' | 'ratingLichess', value: string): void {
   store.settings[field] = parseRating(value);
+}
+
+const opening = ref('');
+
+async function review(record: GameRecord): Promise<void> {
+  opening.value = record.date;
+  try {
+    await game.openReplay(record);
+  } finally {
+    opening.value = '';
+  }
 }
 </script>
 
@@ -155,6 +167,9 @@ function setRating(field: 'ratingChesscom' | 'ratingLichess', value: string): vo
         <span :class="`result-${g.result}`">{{ RESULTS[g.result] }}</span>
         <span>niv. {{ g.level }}</span>
         <span>{{ g.accuracy ?? '—' }}{{ g.accuracy !== null && g.accuracy !== undefined ? ' %' : '' }}</span>
+        <button class="btn review" :disabled="!!opening" @click="review(g)">
+          {{ opening === g.date ? '…' : 'Revoir' }}
+        </button>
       </div>
     </div>
   </section>
@@ -230,9 +245,14 @@ label.rating:focus-within {
 }
 .history-row {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 0.8fr 0.7fr;
+  grid-template-columns: 1.2fr 1fr 0.8fr 0.7fr auto;
+  align-items: center;
   gap: 6px;
   padding: 5px 0;
   border-top: 1px solid var(--line);
+}
+.history-row .review {
+  padding: 4px 10px;
+  font-size: 13px;
 }
 </style>
