@@ -254,7 +254,6 @@ export const useGameStore = defineStore('game', () => {
     phase.value = 'engine';
     await player.newGame();
     startTicker();
-    void settingsStore.saveSettings();
     if (color === 'w') beginUserTurn();
     else void engineTurn();
   }
@@ -734,7 +733,6 @@ export const useGameStore = defineStore('game', () => {
       summary: emptyAnswer(),
     });
     result.value = r;
-    void settingsStore.saveSettings();
     void settingsStore.addGame({
       date: new Date().toISOString(),
       color: userColor.value,

@@ -14,18 +14,15 @@ function chooseTheme(theme: BoardTheme): void {
   s.boardTheme = theme.id;
   s.boardLight = theme.light;
   s.boardDark = theme.dark;
-  void store.saveSettings();
 }
 
 function setColor(which: 'boardLight' | 'boardDark', value: string): void {
   s.boardTheme = 'custom';
   s[which] = value;
-  void store.saveSettings();
 }
 
 function chooseSet(id: string): void {
   s.pieceSet = id;
-  void store.saveSettings();
 }
 </script>
 
